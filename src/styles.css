@@ -1,0 +1,539 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: #1c140e;
+  --color-ink-soft: #3d2a1c;
+  --color-paper: #f4e8d4;
+  --color-paper-deep: #e8d4b8;
+  --color-bark: #6b3e28;
+  --color-rust: #9c4e2a;
+  --color-moss: #4e6b3c;
+  --color-muted: #8a6f55;
+  --color-line: #c4a882;
+  --color-window: #f7efe0;
+
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+}
+
+:root {
+  --shadow-border:
+    0 0 0 1px color-mix(in oklab, var(--color-ink) 14%, transparent),
+    0 1px 2px -1px color-mix(in oklab, var(--color-ink) 12%, transparent);
+  --shadow-window:
+    0 0 0 1px color-mix(in oklab, var(--color-ink) 22%, transparent),
+    0 18px 40px -16px color-mix(in oklab, var(--color-ink) 55%, transparent);
+  --shadow-icon:
+    0 0 0 1px color-mix(in oklab, var(--color-paper) 18%, transparent),
+    0 8px 16px -8px color-mix(in oklab, var(--color-ink) 50%, transparent);
+
+  --motion-stagger: 40ms;
+  --motion-micro: 80ms;
+  --motion-quick: 150ms;
+  --motion-fast: 250ms;
+  --motion-medium: 350ms;
+  --motion-slow: 400ms;
+  --ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --motion-y-micro: 4px;
+  --motion-y-small: 6px;
+  --motion-scale-modal: 0.96;
+}
+
+html[data-theme="beige"] {
+  --color-ink: #2a2622;
+  --color-ink-soft: #3f3a34;
+  --color-paper: #f3efe6;
+  --color-paper-deep: #e4dccf;
+  --color-bark: #6d655c;
+  --color-rust: #8a7355;
+  --color-moss: #6a7564;
+  --color-muted: #8d8478;
+  --color-line: #cfc6b8;
+  --color-window: #faf7f2;
+}
+
+html[data-theme="green"] {
+  --color-ink: #142018;
+  --color-ink-soft: #24352b;
+  --color-paper: #e7f0e4;
+  --color-paper-deep: #d0e0c8;
+  --color-bark: #3d5c45;
+  --color-rust: #3f6b4a;
+  --color-moss: #2f5d3a;
+  --color-muted: #6d8574;
+  --color-line: #b7cbb4;
+  --color-window: #f4faf2;
+}
+
+html[data-theme="purple"] {
+  --color-ink: #24182c;
+  --color-ink-soft: #3a2a44;
+  --color-paper: #f3eaf6;
+  --color-paper-deep: #e2d2ea;
+  --color-bark: #5c3d6e;
+  --color-rust: #7a4e8a;
+  --color-moss: #5b4e7a;
+  --color-muted: #8d7596;
+  --color-line: #d0bdd6;
+  --color-window: #faf6fb;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: var(--color-ink);
+    color: var(--color-paper);
+  }
+
+  body {
+    font-family: var(--font-sans);
+    margin: 0;
+    overflow: hidden;
+  }
+
+  button,
+  input,
+  textarea,
+  select,
+  img {
+    border-radius: 0;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  input[type="number"]::-webkit-inner-spin-button,
+  input[type="number"]::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+
+  input[type="number"] {
+    appearance: textfield;
+  }
+
+  input[type="date"] {
+    color-scheme: light;
+    min-width: 0;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator {
+    opacity: 0.55;
+    cursor: pointer;
+  }
+
+  input[type="date"]::-webkit-datetime-edit,
+  input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+  input[type="date"]::-webkit-datetime-edit-text,
+  input[type="date"]::-webkit-datetime-edit-month-field,
+  input[type="date"]::-webkit-datetime-edit-day-field,
+  input[type="date"]::-webkit-datetime-edit-year-field {
+    color: var(--color-ink);
+  }
+
+  select {
+    color: var(--color-ink);
+    background-color: transparent;
+  }
+}
+
+@layer components {
+  .noise-film {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.22 0 0 0 0 0.14 0 0 0 0 0.08 0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    background-size: 180px 180px;
+  }
+
+  .paper-grain {
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.45 0 0 0 0 0.3 0 0 0 0 0.16 0 0 0 0.35 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    background-size: 140px 140px;
+  }
+
+  .folio-scroll::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .folio-scroll::-webkit-scrollbar-thumb {
+    background: color-mix(in oklab, var(--color-ink) 28%, transparent);
+    border-radius: 99px;
+  }
+
+  .folio-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .folio-plain {
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--color-ink);
+    border-radius: 0;
+    outline: none;
+  }
+
+  .folio-plain::placeholder {
+    color: var(--color-muted);
+  }
+
+  .folio-lined {
+    background-color: color-mix(in oklab, var(--color-window) 88%, var(--color-paper-deep));
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent calc(1.75rem - 1px),
+      color-mix(in oklab, var(--color-line) 80%, transparent) calc(1.75rem - 1px),
+      color-mix(in oklab, var(--color-line) 80%, transparent) 1.75rem
+    );
+    background-size: 100% 1.75rem;
+    background-position: 0 0;
+    box-shadow: var(--shadow-border);
+  }
+
+  .folio-journal-text {
+    min-height: 100%;
+    border: 0;
+    outline: none;
+    font-size: 0.9375rem;
+    line-height: 1.75rem;
+    color: var(--color-ink);
+    padding-top: 0;
+  }
+
+  .folio-journal-text:empty::before {
+    content: attr(data-placeholder);
+    color: var(--color-muted);
+  }
+
+  .folio-lined-field {
+    border: 0;
+    outline: none;
+    font-size: 0.9375rem;
+    line-height: 1.75rem;
+    min-height: 100%;
+  }
+
+  .folio-lined-field::placeholder {
+    color: var(--color-muted);
+  }
+
+  .folio-field {
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid color-mix(in oklab, var(--color-ink) 16%, transparent);
+    background: transparent;
+    color: var(--color-ink);
+    border-radius: 0;
+    outline: none;
+    transition:
+      border-color var(--motion-quick) var(--ease-out),
+      box-shadow var(--motion-quick) var(--ease-out);
+  }
+
+  .folio-field:hover {
+    border-bottom-color: color-mix(in oklab, var(--color-ink) 32%, transparent);
+  }
+
+  .folio-field:focus {
+    border-bottom-color: var(--color-rust);
+    box-shadow: 0 1px 0 0 var(--color-rust);
+  }
+
+  .folio-field::placeholder {
+    color: var(--color-muted);
+  }
+
+  .folio-control {
+    width: 100%;
+    min-width: 0;
+    height: 2.5rem;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: color-mix(in oklab, var(--color-paper-deep) 80%, white);
+    color: var(--color-ink);
+    box-shadow: var(--shadow-border);
+    outline: none;
+    padding: 0 0.6rem;
+    transition: box-shadow var(--motion-quick) var(--ease-out);
+  }
+
+  .folio-control:hover {
+    box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-ink) 22%, transparent);
+  }
+
+  .folio-control:focus {
+    box-shadow: 0 0 0 2px var(--color-rust);
+  }
+
+  .folio-control::placeholder {
+    color: var(--color-muted);
+  }
+
+  .folio-account {
+    color: var(--color-paper);
+    max-width: min(16rem, 42vw);
+  }
+
+  .folio-log {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
+
+  .folio-log th,
+  .folio-log td {
+    border-right: 1px solid color-mix(in oklab, var(--color-ink) 12%, transparent);
+    border-left: 0;
+    border-top: 0;
+    border-bottom: 0;
+  }
+
+  .folio-log th:last-child,
+  .folio-log td:last-child {
+    border-right: 0;
+  }
+
+  .folio-log-done {
+    width: 1%;
+    white-space: nowrap;
+    padding-inline: 0.4rem;
+    text-align: center;
+  }
+
+  .folio-log tr.folio-log-edit td {
+    background: color-mix(in oklab, var(--color-rust) 14%, var(--color-window));
+    box-shadow: inset 0 1px 0 var(--color-rust), inset 0 -1px 0 var(--color-rust);
+  }
+
+  .folio-log tr.folio-log-edit td:first-child {
+    box-shadow:
+      inset 1px 0 0 var(--color-rust),
+      inset 0 1px 0 var(--color-rust),
+      inset 0 -1px 0 var(--color-rust);
+  }
+
+  .folio-log tr.folio-log-edit td:last-child {
+    box-shadow:
+      inset -1px 0 0 var(--color-rust),
+      inset 0 1px 0 var(--color-rust),
+      inset 0 -1px 0 var(--color-rust);
+  }
+
+  .folio-shelf {
+    container-type: inline-size;
+  }
+
+  .folio-shelf-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(min(50%, max(9.5rem, 16.666%)), 1fr));
+  }
+
+  .folio-cover {
+    aspect-ratio: 5 / 7;
+  }
+
+  .folio-cover-add {
+    display: none;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .folio-cover-add {
+      display: flex;
+      opacity: 0;
+    }
+
+    .group:hover .folio-cover-add,
+    .folio-cover-add:focus-visible {
+      opacity: 1;
+    }
+  }
+
+  .folio-overlay {
+    z-index: 80;
+  }
+
+  .cafe-scene {
+    container-type: size;
+  }
+
+  .cafe-stage {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: max(100cqw, calc(100cqh * 1.5));
+    height: max(100cqh, calc(100cqw / 1.5));
+    transform: translate(-50%, -50%);
+  }
+
+  .cafe-gust {
+    position: absolute;
+    inset: 0;
+    animation: cafe-wind 7s ease-in-out infinite;
+    transform-origin: 50% 80%;
+  }
+
+  .cafe-foliage {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    height: 34%;
+    overflow: hidden;
+    pointer-events: none;
+    mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+  }
+
+  .cafe-foliage img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: calc(100% / 0.34);
+    max-width: none;
+    animation: cafe-foliage 5.5s ease-in-out infinite;
+    transform-origin: top center;
+  }
+
+  .cafe-cat {
+    position: absolute;
+    top: 70.2%;
+    left: 66.2%;
+    width: 13.4%;
+    height: 9.4%;
+    overflow: hidden;
+    pointer-events: none;
+    mask-image: radial-gradient(ellipse at 50% 62%, black 42%, transparent 74%);
+  }
+
+  .cafe-cat img {
+    position: absolute;
+    width: calc(100% / 0.134);
+    height: calc(100% / 0.094);
+    max-width: none;
+    left: calc(-66.2% / 0.134);
+    top: calc(-70.2% / 0.094);
+    transform-origin: 50% 78%;
+    animation: cafe-breathe 3.6s ease-in-out infinite;
+  }
+
+  .cafe-lamp {
+    position: absolute;
+    top: 0;
+    right: 2%;
+    width: 16%;
+    height: 58%;
+    background: radial-gradient(circle at 72% 16%, rgb(255 196 110 / 42%), transparent 58%);
+    mix-blend-mode: screen;
+    animation: cafe-glow 2.8s ease-in-out infinite;
+    pointer-events: none;
+  }
+
+  .cafe-steam {
+    position: absolute;
+    width: 3px;
+    height: 7px;
+    background: rgb(255 248 236 / 80%);
+    box-shadow: 0 -7px 0 rgb(255 248 236 / 45%);
+    animation: cafe-steam 2.8s ease-in infinite;
+    pointer-events: none;
+  }
+
+  .cafe-leaf {
+    position: absolute;
+    top: -8%;
+    animation-name: cafe-fall;
+    animation-timing-function: linear;
+    animation-iteration-count: infinite;
+    pointer-events: none;
+  }
+}
+
+@keyframes cafe-wind {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(-0.35%, 0.08%, 0);
+  }
+}
+
+@keyframes cafe-foliage {
+  0%,
+  100% {
+    transform: translateX(0) skewX(0deg);
+  }
+  50% {
+    transform: translateX(-1.1%) skewX(-0.7deg);
+  }
+}
+
+@keyframes cafe-breathe {
+  0%,
+  100% {
+    transform: scale(1, 1);
+  }
+  50% {
+    transform: scale(1.02, 1.07);
+  }
+}
+
+@keyframes cafe-glow {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes cafe-steam {
+  0% {
+    transform: translate3d(0, 4px, 0) scaleY(0.5);
+    opacity: 0;
+  }
+  18% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(7px, -26px, 0) scaleY(1.15);
+    opacity: 0;
+  }
+}
+
+@keyframes cafe-fall {
+  0% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  100% {
+    transform: translate3d(var(--leaf-drift, 24px), 115%, 0) rotate(200deg);
+  }
+}
