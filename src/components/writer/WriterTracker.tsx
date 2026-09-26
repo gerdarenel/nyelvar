@@ -24,6 +24,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CoverArt } from "@/components/ui/cover-art";
 import { NumberField } from "@/components/ui/number-field";
 import { TagSelect } from "@/components/ui/tag-select";
+import { CyclePicker } from "@/components/writer/CyclePicker";
+import { TitleField } from "@/components/ui/title-field";
 import { cn } from "@/lib/utils";
 
 type SettingsDraft = {
@@ -160,24 +162,26 @@ export function WriterTracker() {
           </button>
           <span className="min-w-0 flex-1 truncate px-1 text-sm text-muted">Мои книги</span>
         </div>
-        <header className="flex items-stretch gap-4">
+        <header className="mb-2 flex items-stretch gap-4">
           <CoverArt
             src={cover}
             label={book.title}
             onUpload={(file) => void onCover(file)}
+            className="min-h-[13.2rem]"
           />
 
           <div className="flex min-w-0 flex-1 flex-col">
-            <div className="flex items-center gap-1">
-              <label className="sr-only" htmlFor={`title-${book.id}`}>
-                Книга
-              </label>
-              <input
-                id={`title-${book.id}`}
-                value={book.title}
-                onChange={(event) => updateBook(book.id, { title: event.target.value })}
-                className="folio-plain min-w-0 flex-1 font-display text-2xl leading-tight font-semibold tracking-tight md:text-3xl"
-              />
+            <div className="flex items-start gap-1">
+              <div className="min-w-0 flex-1">
+                <TitleField
+                  id={`title-${book.id}`}
+                  value={book.title}
+                  label="Книга"
+                  onChange={(value) => updateBook(book.id, { title: value })}
+                  className="m-0 block min-w-0 border-0 p-0 font-display text-2xl leading-none font-semibold tracking-tight md:text-3xl"
+                />
+                <CyclePicker bookId={book.id} cycle={book.cycle ?? null} />
+              </div>
               <button
                 type="button"
                 aria-label="Настройки рукописи"
@@ -197,7 +201,7 @@ export function WriterTracker() {
               rows={3}
               onChange={(event) => updateBook(book.id, { annotation: event.target.value })}
               placeholder="Краткая аннотация рукописи."
-              className="folio-plain mt-1 min-h-0 flex-1 resize-none py-1 text-sm leading-relaxed"
+              className="folio-plain mt-3 mr-[14px] min-h-0 w-full max-w-[700px] flex-1 resize-none py-1 text-sm leading-[1.083]"
             />
             <div className="mt-auto flex min-w-0 items-center gap-3 pt-2">
               <TagSelect

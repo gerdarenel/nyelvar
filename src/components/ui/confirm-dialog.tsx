@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 
@@ -8,6 +8,8 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Удалить",
   danger = true,
+  confirmClassName,
+  children,
   onCancel,
   onConfirm,
 }: {
@@ -16,6 +18,8 @@ export function ConfirmDialog({
   description?: string;
   confirmLabel?: string;
   danger?: boolean;
+  confirmClassName?: string;
+  children?: ReactNode;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
@@ -44,11 +48,17 @@ export function ConfirmDialog({
       >
         <p className="font-display text-lg font-semibold tracking-tight">{title}</p>
         {description ? <p className="mt-1 text-sm leading-relaxed text-muted">{description}</p> : null}
+        {children}
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="ghost" size="sm" onClick={onCancel}>
             Отмена
           </Button>
-          <Button variant={danger ? "rust" : "primary"} size="sm" onClick={onConfirm}>
+          <Button
+            variant={danger ? "rust" : "primary"}
+            size="sm"
+            className={confirmClassName}
+            onClick={onConfirm}
+          >
             {confirmLabel}
           </Button>
         </div>

@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
-import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
+import { GROK_PROVIDERS, authClient, authEnabled, clearLocalSession, signIn, storeSessionToken } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { useWallpaperMotionAllowed } from "@/components/desktop/WallpaperMedia";
 import { Button } from "@/components/ui/button";
 
 export const Route = createFileRoute("/login")({ component: Login });
@@ -17,6 +18,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const motionAllowed = useWallpaperMotionAllowed();
 
   useEffect(() => {
     setMounted(true);
@@ -42,20 +44,23 @@ function Login() {
     setError(null);
     setBusy(true);
     try {
+      clearLocalSession();
       if (mode === "up") {
-        const { error: signUpError } = await authClient.signUp.email({
+        const { data, error: signUpError } = await authClient.signUp.email({
           email: email.trim(),
           password,
           name: name.trim() || email.trim().split("@")[0] || "Писатель",
         });
         if (signUpError) throw new Error(signUpError.message ?? "Не удалось создать аккаунт.");
+        if (data?.token) storeSessionToken(data.token);
       } else {
-        const { error: signInError } = await authClient.signIn.email({
+        const { data, error: signInError } = await authClient.signIn.email({
           email: email.trim(),
           password,
           rememberMe: true,
         });
         if (signInError) throw new Error(signInError.message ?? "Не удалось войти.");
+        if (data?.token) storeSessionToken(data.token);
       }
       await authClient.getSession();
       window.location.href = "/";
@@ -68,7 +73,11 @@ function Login() {
   return (
     <main className="relative min-h-dvh overflow-y-auto bg-ink text-paper">
       <div className="absolute inset-0">
-        <img src="/wallpaper-autumn.gif" alt="" className="size-full object-cover" />
+        <img
+          src={motionAllowed ? "/wallpaper-autumn.gif" : "/wallpaper-autumn-still.png"}
+          alt=""
+          className="size-full object-cover"
+        />
         <div className="absolute inset-0 bg-ink/45" />
         <div className="noise-film absolute inset-0 opacity-40 mix-blend-multiply" />
       </div>
@@ -142,6 +151,20 @@ function Login() {
                     className="folio-control text-sm"
                   />
                 </label>
+                {mode === "in" ? (
+                  <p className="text-xs leading-relaxed text-muted">
+                    Если вы забыли пароль, напишите в личные сообщения телеграм-канала{" "}
+                    <a
+                      href="https://t.me/gerdarenelle"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-muted/60 underline-offset-2 hover:text-ink"
+                    >
+                      gerdarenelle
+                    </a>{" "}
+                    с просьбой о восстановлении.
+                  </p>
+                ) : null}
                 {error ? <p className="text-sm text-rust">{error}</p> : null}
                 <Button type="submit" className="w-full" disabled={busy}>
                   {busy ? "Подождите…" : mode === "in" ? "Войти" : "Создать аккаунт"}

@@ -168,6 +168,7 @@ export function AppWindow({
         <h2 className="min-w-0 flex-1 truncate px-2 text-sm font-medium tracking-wide">{title}</h2>
         <div className="flex shrink-0 items-center">
           <ChromeButton
+            className="hidden md:flex"
             label={`Свернуть «${title}»`}
             onClick={() => toggleMinimized(id)}
           >

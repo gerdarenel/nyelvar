@@ -2,11 +2,17 @@ import { useEffect, useRef, useState } from "react";
 import { Pause, Play, RotateCcw, Settings, Square } from "lucide-react";
 import { CafeScene } from "@/components/cafe/CafeScene";
 import { NumberField } from "@/components/ui/number-field";
+import {
+  resetPomodoro,
+  stopPomodoro,
+  syncIdleDuration,
+  togglePomodoro,
+  usePomodoro,
+  type CafePhase,
+} from "@/lib/cafe-timer";
 import { useFolioStore } from "@/lib/store";
 
-type Phase = "focus" | "short" | "long";
-
-const PHASE_LABEL: Record<Phase, string> = {
+const PHASE_LABEL: Record<CafePhase, string> = {
   focus: "Фокус",
   short: "Отдых",
   long: "Большой отдых",
@@ -15,100 +21,16 @@ const PHASE_LABEL: Record<Phase, string> = {
 export function Cafe() {
   const cafe = useFolioStore((state) => state.cafe);
   const setCafe = useFolioStore((state) => state.setCafe);
-  const chime = useRef<HTMLAudioElement | null>(null);
-  const unlocked = useRef(false);
-  const cafeRef = useRef(cafe);
-  const runningRef = useRef(false);
-  const advancing = useRef(false);
-  const phaseRef = useRef<Phase>("focus");
-  const roundRef = useRef(0);
-  const [phase, setPhase] = useState<Phase>("focus");
-  const [remaining, setRemaining] = useState(cafe.focusMin * 60);
-  const [running, setRunning] = useState(false);
-  const [round, setRound] = useState(0);
+  const timer = usePomodoro();
   const [settingsOpen, setSettingsOpen] = useState(false);
-
-  cafeRef.current = cafe;
-  runningRef.current = running;
-
-  useEffect(() => {
-    const audio = new Audio("/cafe-chime.mp3");
-    audio.preload = "auto";
-    chime.current = audio;
-    return () => {
-      audio.pause();
-      chime.current = null;
-    };
-  }, []);
+  const durationKey = `${cafe.focusMin}|${cafe.shortMin}|${cafe.longMin}`;
+  const seenDuration = useRef(durationKey);
 
   useEffect(() => {
-    if (runningRef.current) return;
-    const minutes =
-      phase === "focus" ? cafe.focusMin : phase === "short" ? cafe.shortMin : cafe.longMin;
-    setRemaining(Math.max(1, minutes) * 60);
-  }, [cafe.focusMin, cafe.shortMin, cafe.longMin, phase]);
-
-  useEffect(() => {
-    if (!running) return;
-    const id = window.setInterval(() => {
-      setRemaining((value) => (value > 1 ? value - 1 : 0));
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [running]);
-
-  useEffect(() => {
-    if (remaining !== 0) advancing.current = false;
-  }, [remaining]);
-
-  useEffect(() => {
-    if (!running || remaining !== 0 || advancing.current) return;
-    advancing.current = true;
-    playChime();
-    const settings = cafeRef.current;
-    let nextPhase: Phase = "focus";
-    let nextRound = roundRef.current;
-    if (phaseRef.current === "focus") {
-      nextRound += 1;
-      nextPhase = nextRound % 4 === 0 ? "long" : "short";
-    }
-    const minutes =
-      nextPhase === "focus"
-        ? settings.focusMin
-        : nextPhase === "short"
-          ? settings.shortMin
-          : settings.longMin;
-    phaseRef.current = nextPhase;
-    roundRef.current = nextRound;
-    setPhase(nextPhase);
-    setRound(nextRound);
-    setRemaining(Math.max(1, minutes) * 60);
-    if (!settings.autoStart) setRunning(false);
-  }, [remaining, running]);
-
-  function unlock() {
-    const audio = chime.current;
-    if (!audio || unlocked.current) return;
-    unlocked.current = true;
-    audio.muted = true;
-    void audio
-      .play()
-      .then(() => {
-        audio.pause();
-        audio.currentTime = 0;
-        audio.muted = false;
-      })
-      .catch(() => {
-        unlocked.current = false;
-      });
-  }
-
-  function playChime() {
-    const audio = chime.current;
-    if (!audio) return;
-    audio.muted = false;
-    audio.currentTime = 0;
-    void audio.play().catch(() => {});
-  }
+    if (seenDuration.current === durationKey) return;
+    seenDuration.current = durationKey;
+    syncIdleDuration(cafe);
+  }, [cafe, durationKey]);
 
   function setMinutes(key: "focusMin" | "shortMin" | "longMin", raw: string) {
     if (!/^\d{0,3}$/.test(raw)) return;
@@ -120,27 +42,13 @@ export function Cafe() {
     setCafe({ ...cafe, [key]: Math.min(max, Number(raw)) });
   }
 
-  function stopCurrent() {
-    setRunning(false);
-    const minutes =
-      phase === "focus" ? cafe.focusMin : phase === "short" ? cafe.shortMin : cafe.longMin;
-    setRemaining(Math.max(1, minutes) * 60);
-  }
-
-  function resetAll() {
-    setRunning(false);
-    phaseRef.current = "focus";
-    roundRef.current = 0;
-    setPhase("focus");
-    setRound(0);
-    setRemaining(Math.max(1, cafe.focusMin) * 60);
-  }
-
-  const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
-  const seconds = String(remaining % 60).padStart(2, "0");
+  const minutes = String(Math.floor(timer.remaining / 60)).padStart(2, "0");
+  const seconds = String(timer.remaining % 60).padStart(2, "0");
+  const phase = timer.phase;
+  const round = timer.round;
 
   return (
-    <div className="relative h-full min-h-0" onPointerDown={unlock}>
+    <div className="relative h-full min-h-0">
       <CafeScene />
       {settingsOpen ? (
         <div className="absolute inset-x-3 bottom-32 z-20 border border-ink/15 bg-window px-3 py-3 shadow-[var(--shadow-window)]">
@@ -183,16 +91,16 @@ export function Cafe() {
         <div className="mt-1 flex items-center gap-1">
           <button
             type="button"
-            aria-label={running ? "Пауза" : "Старт"}
-            onClick={() => setRunning((value) => !value)}
+            aria-label={timer.running ? "Пауза" : "Старт"}
+            onClick={() => togglePomodoro(cafe)}
             className="flex size-8 items-center justify-center text-white hover:bg-white/15"
           >
-            {running ? <Pause className="size-4" /> : <Play className="size-4" />}
+            {timer.running ? <Pause className="size-4" /> : <Play className="size-4" />}
           </button>
           <button
             type="button"
             aria-label="Стоп"
-            onClick={stopCurrent}
+            onClick={() => stopPomodoro(cafe)}
             className="flex size-8 items-center justify-center text-white hover:bg-white/15"
           >
             <Square className="size-3.5 fill-current" />
@@ -200,7 +108,7 @@ export function Cafe() {
           <button
             type="button"
             aria-label="Начать заново"
-            onClick={resetAll}
+            onClick={() => resetPomodoro(cafe)}
             className="flex size-8 items-center justify-center text-white hover:bg-white/15"
           >
             <RotateCcw className="size-4" />

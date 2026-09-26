@@ -64,7 +64,7 @@ export function Library({
           {tab === "done" ? "Пока нет законченных книг." : tab === "paused" ? "Нет отложенных книг." : "Полка пуста."}
         </p>
       ) : (
-        <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+        <ul className="folio-shelf-grid">
           {visible.map((book) => {
             const progress = getProgress(book);
             const cover = coverOf(book);

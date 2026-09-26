@@ -1,16 +1,21 @@
 export type ThemeId = "autumn" | "beige" | "green" | "purple";
+export type ColorScheme = "light" | "dark" | "system";
 
 export const AUTUMN_MOTION = "/wallpaper-autumn.gif";
-export const AUTUMN_STILL = "/wallpaper-autumn-still.jpg";
+export const AUTUMN_STILL = "/wallpaper-autumn-still.png";
 
 const ANIMATED = [
-  { motion: AUTUMN_MOTION, still: AUTUMN_STILL, aliases: ["/wallpaper-autumn.mp4", "/wallpaper.jpg"] },
+  {
+    motion: AUTUMN_MOTION,
+    still: AUTUMN_STILL,
+    aliases: ["/wallpaper-autumn.mp4", "/wallpaper.jpg", "/wallpaper-autumn-still.jpg"],
+  },
 ];
 
 export const THEMES: { id: ThemeId; label: string; wallpaper: string; colors: string[] }[] = [
   { id: "autumn", label: "Осень", wallpaper: AUTUMN_MOTION, colors: ["#1c140e", "#9c4e2a", "#4e6b3c", "#f4e8d4"] },
   { id: "beige", label: "Беж", wallpaper: "/wallpaper-beige.jpg", colors: ["#2a2622", "#8a7355", "#6a7564", "#f3efe6"] },
-  { id: "green", label: "Зелень", wallpaper: "/wallpaper-green-still.jpg", colors: ["#142018", "#3f6b4a", "#2f5d3a", "#e7f0e4"] },
+  { id: "green", label: "Зелень", wallpaper: "/wallpaper-green-still.jpg", colors: ["#1a221c", "#5c705e", "#46624c", "#e5ece3"] },
   { id: "purple", label: "Сирень", wallpaper: "/wallpaper-purple.jpg", colors: ["#24182c", "#7a4e8a", "#5b4e7a", "#f3eaf6"] },
 ];
 
@@ -20,6 +25,17 @@ export function themeOf(id: ThemeId | undefined) {
 
 export function isAnimatedWallpaper(src: string) {
   return ANIMATED.some((item) => item.motion === src || item.still === src || item.aliases.includes(src));
+}
+
+/** Animated wallpapers are a desktop feature. Phones and tablets stay on the still image. */
+export function wallpaperMotionAllowed() {
+  if (typeof navigator === "undefined") return false;
+  const ua = navigator.userAgent || "";
+  if (/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua)) return false;
+  const nav = navigator as Navigator & { userAgentData?: { mobile?: boolean } };
+  if (nav.userAgentData?.mobile) return false;
+  if (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1) return false;
+  return true;
 }
 
 export function visibleWallpaper(src: string, motion: boolean) {

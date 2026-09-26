@@ -64,7 +64,7 @@ export function ProgressPath({
           type="button"
           aria-label="Новый черновик"
           onClick={onNewRound}
-          className="mb-px ml-auto flex size-5 shrink-0 items-center justify-center rounded-full border-[1.33px] border-current text-muted hover:bg-ink/6 hover:text-ink"
+          className="ml-auto flex size-5 shrink-0 items-center justify-center self-center rounded-full border-[1.33px] border-current text-muted hover:bg-ink/6 hover:text-ink"
         >
           <Plus className="size-3" strokeWidth={2.66} />
         </button>
@@ -95,11 +95,13 @@ export function ProgressPath({
           pane === "chapters" && "rounded-tl-none",
         )}
       >
-        <div className="grid grid-cols-3">
-          <Stat value={formatWords(progress.totalWords)} label="слов в рукописи" />
-          <Stat value={String(chapterNo)} label={`глава из ${book.chapterCount}`} />
-          <Stat value={String(streak)} label={streakLabel(streak)} />
-        </div>
+        <StatRow
+          stats={[
+            { value: formatWords(progress.totalWords), label: "слов в рукописи" },
+            { value: String(chapterNo), label: `глава из ${book.chapterCount}` },
+            { value: String(streak), label: streakLabel(streak) },
+          ]}
+        />
 
         {pane === "chapters" ? (
         <>
@@ -124,11 +126,13 @@ function RoundStats({ book }: { book: Book }) {
   const streak = writingStreak(book.records);
   const chapterNo = progress.allDone ? book.chapterCount : (progress.current ?? book.chapterCount);
   return (
-    <div className="grid grid-cols-3">
-      <Stat value={formatWords(progress.totalWords)} label="слов в рукописи" />
-      <Stat value={String(chapterNo)} label={`глава из ${book.chapterCount}`} />
-      <Stat value={String(streak)} label={streakLabel(streak)} />
-    </div>
+    <StatRow
+      stats={[
+        { value: formatWords(progress.totalWords), label: "слов в рукописи" },
+        { value: String(chapterNo), label: `глава из ${book.chapterCount}` },
+        { value: String(streak), label: streakLabel(streak) },
+      ]}
+    />
   );
 }
 
@@ -143,13 +147,17 @@ function ChapterLane({
   return (
     <div ref={scroller} className="folio-scroll mt-3 -mx-1 overflow-x-auto px-2 pt-3 pb-2">
       <ol className="flex min-w-min items-center px-1">
-        {progress.nodes.map((node, index) => (
+        {progress.nodes.map((node, index) => {
+          const special = node.kind !== "chapter";
+          const caption = node.kind === "prologue" ? "Пролог" : node.kind === "epilogue" ? "Эпилог" : `Гл. ${node.n}`;
+          const mark = node.kind === "prologue" ? "П" : node.kind === "epilogue" ? "Э" : String(node.n);
+          return (
           <li
-            key={node.n}
-            data-current={node.status === "current" ? "true" : undefined}
+            key={`${node.kind}-${node.n}`}
+            data-current={node.kind === "chapter" && node.status === "current" ? "true" : undefined}
             className="flex items-center"
           >
-            <div className="flex w-12 flex-col items-center gap-1.5">
+            <div className={cn("flex flex-col items-center gap-1.5", special ? "w-16" : "w-12")}>
               <div
                 className={cn(
                   "flex size-11 items-center justify-center rounded-full text-sm font-semibold tabular-nums",
@@ -159,11 +167,11 @@ function ChapterLane({
                   node.status === "locked" && "bg-window/70 text-muted",
                 )}
                 aria-current={node.status === "current" ? "step" : undefined}
-                title={`Глава ${node.n}`}
+                title={caption}
               >
-                {node.status === "complete" ? <Check className="size-4" strokeWidth={2.5} /> : node.n}
+                {node.status === "complete" ? <Check className="size-4" strokeWidth={2.5} /> : mark}
               </div>
-              <span className="text-xs font-medium tracking-wide text-muted">Гл. {node.n}</span>
+              <span className="text-xs font-medium tracking-wide text-muted">{caption}</span>
             </div>
             {index < progress.nodes.length - 1 ? (
               <div className="relative mb-5 h-1.5 w-10 overflow-hidden bg-line/70 sm:w-12" aria-hidden="true">
@@ -177,19 +185,71 @@ function ChapterLane({
               </div>
             ) : null}
           </li>
-        ))}
+          );
+        })}
       </ol>
     </div>
   );
 }
 
-function Stat({ value, label }: { value: string; label: string }) {
+function StatRow({ stats }: { stats: { value: string; label: string }[] }) {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const numberRefs = useRef<(HTMLParagraphElement | null)[]>([]);
+  const [size, setSize] = useState(48);
+  const signature = stats.map((stat) => stat.value).join("|");
+
+  useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    let measuredWidth = -1;
+    const fit = () => {
+      const width = row.clientWidth;
+      if (width <= 0 || width === measuredWidth) return;
+      const nodes = numberRefs.current.filter((node): node is HTMLParagraphElement => Boolean(node));
+      if (nodes.length === 0) return;
+      measuredWidth = width;
+      let next = 48;
+      for (const node of nodes) {
+        const available = node.clientWidth;
+        if (available <= 0) continue;
+        node.style.fontSize = "48px";
+        if (node.scrollWidth <= available + 1) continue;
+        let fitted = Math.max(12, Math.floor((48 * available) / node.scrollWidth));
+        node.style.fontSize = `${fitted}px`;
+        while (fitted > 12 && node.scrollWidth > available + 1) {
+          fitted -= 1;
+          node.style.fontSize = `${fitted}px`;
+        }
+        next = Math.min(next, fitted);
+      }
+      for (const node of nodes) node.style.fontSize = `${next}px`;
+      setSize((current) => (current === next ? current : next));
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, [signature]);
+
   return (
-    <div className="min-w-0 border-l border-ink/15 px-4 first:border-l-0 first:pl-0 md:px-8">
-      <p className="font-display text-4xl leading-none font-semibold tracking-tight text-ink tabular-nums md:text-5xl">
-        {value}
-      </p>
-      <p className="mt-2 text-sm text-muted">{label}</p>
+    <div ref={rowRef} className="grid grid-cols-3">
+      {stats.map((stat, index) => (
+        <div
+          key={stat.label}
+          className="min-w-0 border-l border-ink/15 px-2 first:border-l-0 first:pl-0 last:pr-0"
+        >
+          <p
+            ref={(node) => {
+              numberRefs.current[index] = node;
+            }}
+            className="w-full overflow-hidden font-display leading-none font-semibold tracking-tight text-ink tabular-nums whitespace-nowrap"
+            style={{ fontSize: size }}
+          >
+            {stat.value}
+          </p>
+          <p className="mt-2 text-sm leading-tight text-muted">{stat.label}</p>
+        </div>
+      ))}
     </div>
   );
 }

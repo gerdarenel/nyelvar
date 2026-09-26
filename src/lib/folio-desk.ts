@@ -5,12 +5,13 @@ import { getSql } from "@/lib/db";
 import {
   type Book,
   type CountUnit,
+  type PlannerItem,
   type ReadingBook,
   type ReadingStatus,
   type TrackerTag,
   migrateReadingBook,
 } from "@/lib/folio";
-import type { ThemeId } from "@/lib/theme";
+import type { ColorScheme, ThemeId } from "@/lib/theme";
 
 export type DeskNote = {
   id: string;
@@ -25,9 +26,11 @@ export type DeskPayload = {
   shelf: ReadingBook[];
   activeReadingId: string | null;
   notes?: DeskNote[];
+  planner?: PlannerItem[];
   activeNoteId?: string | null;
   tags?: TrackerTag[];
   themeId?: ThemeId;
+  colorScheme?: ColorScheme;
   wallpaperSrc?: string | null;
   wallpaperMotion?: boolean;
   customWallpaper?: string | null;
@@ -37,6 +40,8 @@ export type DeskPayload = {
   libraryPane?: "stats" | "shelf";
   countUnit?: CountUnit;
   inbox?: { id: string; arrivedAt: string }[];
+  seenAwards?: Record<string, number> | null;
+  hourClock?: "12" | "24";
 };
 
 function parseJson(value: unknown): unknown {
@@ -48,6 +53,17 @@ function parseJson(value: unknown): unknown {
     }
   }
   return value;
+}
+
+function seenAwardsOf(bag: Record<string, unknown>): Record<string, number> | null | undefined {
+  if (!Object.prototype.hasOwnProperty.call(bag, "seenAwards")) return undefined;
+  const value = bag.seenAwards;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const awards: Record<string, number> = {};
+  for (const [id, count] of Object.entries(value)) {
+    if (typeof count === "number" && count > 0) awards[id] = count;
+  }
+  return awards;
 }
 
 function asBooks(value: unknown): Book[] {
@@ -77,9 +93,14 @@ function unpack(raw: unknown): Omit<DeskPayload, "activeBookId"> {
       shelf: asShelf(bag.shelf),
       activeReadingId: typeof bag.activeReadingId === "string" ? bag.activeReadingId : null,
       notes: optionalArray(bag, "notes"),
+      planner: optionalArray(bag, "planner"),
       activeNoteId: typeof bag.activeNoteId === "string" ? bag.activeNoteId : bag.activeNoteId === null ? null : undefined,
       tags: optionalArray(bag, "tags"),
       themeId: typeof bag.themeId === "string" ? (bag.themeId as ThemeId) : undefined,
+      colorScheme:
+        bag.colorScheme === "light" || bag.colorScheme === "dark" || bag.colorScheme === "system"
+          ? bag.colorScheme
+          : undefined,
       wallpaperSrc: typeof bag.wallpaperSrc === "string" ? bag.wallpaperSrc : bag.wallpaperSrc === null ? null : undefined,
       wallpaperMotion: typeof bag.wallpaperMotion === "boolean" ? bag.wallpaperMotion : undefined,
       customWallpaper:
@@ -96,6 +117,8 @@ function unpack(raw: unknown): Omit<DeskPayload, "activeBookId"> {
       libraryPane: bag.libraryPane === "stats" || bag.libraryPane === "shelf" ? bag.libraryPane : undefined,
       countUnit: bag.countUnit === "chars" || bag.countUnit === "words" ? bag.countUnit : undefined,
       inbox: optionalArray(bag, "inbox"),
+      seenAwards: seenAwardsOf(bag),
+      hourClock: bag.hourClock === "12" || bag.hourClock === "24" ? bag.hourClock : undefined,
     };
   }
   return { books: [], shelf: [], activeReadingId: null };
@@ -107,6 +130,7 @@ function normalizeBook(book: Book): Book {
     startingWords: book.startingWords ?? 0,
     startingChapters: book.startingChapters ?? 0,
     tag: book.tag ?? null,
+    cycle: typeof book.cycle === "string" && book.cycle.trim() ? book.cycle.trim() : null,
     rounds: (book.rounds ?? []).map((round) => ({
       ...round,
       startingWords: round.startingWords ?? 0,
@@ -151,9 +175,11 @@ export const saveDesk = createServerFn({ method: "POST" })
       shelf: Array.isArray(data.shelf) ? data.shelf : [],
       activeReadingId: data.activeReadingId ?? null,
       notes: data.notes ?? [],
+      planner: data.planner ?? [],
       activeNoteId: data.activeNoteId ?? null,
       tags: data.tags ?? [],
       themeId: data.themeId ?? null,
+      colorScheme: data.colorScheme ?? "light",
       wallpaperSrc: data.wallpaperSrc ?? null,
       wallpaperMotion: data.wallpaperMotion !== false,
       customWallpaper: data.customWallpaper ?? null,
@@ -163,6 +189,8 @@ export const saveDesk = createServerFn({ method: "POST" })
       libraryPane: data.libraryPane ?? "shelf",
       countUnit: data.countUnit ?? "words",
       inbox: data.inbox ?? [],
+      seenAwards: data.seenAwards ?? null,
+      hourClock: data.hourClock === "12" ? "12" : "24",
     });
     await sql.query(
       `insert into folio_desks (user_id, books, active_book_id, updated_at)

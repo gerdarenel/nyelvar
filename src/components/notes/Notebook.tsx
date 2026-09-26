@@ -53,7 +53,7 @@ export function Notebook() {
               onChange={(event) => updateNote(note.id, { title: event.target.value })}
               placeholder="Заголовок"
               aria-label="Заголовок"
-              className="h-12 min-w-0 flex-1 bg-transparent font-display text-xl text-ink outline-none placeholder:text-muted"
+              className="h-12 min-w-0 flex-1 bg-transparent font-display text-lg text-ink outline-none placeholder:text-muted"
             />
             <button
               type="button"
@@ -68,7 +68,7 @@ export function Notebook() {
             onChange={(event) => updateNote(note.id, { body: event.target.value })}
             placeholder="Запишите мысль…"
             aria-label="Текст заметки"
-            className="folio-scroll min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-base leading-7 text-ink outline-none placeholder:text-muted"
+            className="folio-scroll min-h-0 flex-1 resize-none bg-transparent px-4 py-3 text-sm leading-6 text-ink outline-none placeholder:text-muted"
           />
         </section>
       ) : (

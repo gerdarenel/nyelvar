@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link } from "@tanstack/react-router";
 import { authClient, authEnabled, clearLocalSession, linkGoogleAccount } from "@/lib/auth/client";
+import { deleteMyAccount } from "@/lib/auth/delete-account";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { useFolioStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,8 @@ export function AccountSettings() {
   const [linking, setLinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [confirmUnlink, setConfirmUnlink] = useState(false);
 
   const googleLinked = accounts.some((account) => account.providerId === "grok-google");
@@ -76,20 +79,24 @@ export function AccountSettings() {
   }
 
   async function onDelete() {
-    if (!user || user.isDevFallback) return;
-    setError(null);
+    if (!user || user.isDevFallback || busy) return;
+    setDeleteError(null);
     setBusy(true);
     try {
-      const { error: deleteError } = await authClient.deleteUser({
-        password: currentPassword || undefined,
-      });
-      if (deleteError) throw new Error(deleteError.message ?? "Не удалось удалить учётную запись.");
+      const result = await deleteMyAccount({ data: { password: deletePassword } });
+      if (result && "ok" in result && result.ok === false) {
+        throw new Error(result.error || "Не удалось удалить учётную запись.");
+      }
       clearLocalSession();
+      try {
+        await authClient.signOut();
+      } catch {
+        /* сессия уже снята вместе с учётной записью */
+      }
       window.location.href = "/";
     } catch (err) {
-      setError(explain(err));
+      setDeleteError(explain(err));
       setBusy(false);
-      setConfirmDelete(false);
     }
   }
 
@@ -196,6 +203,18 @@ export function AccountSettings() {
             className="folio-control text-sm"
           />
         </label>
+        <p className="mt-2 text-xs leading-relaxed text-muted">
+          Если вы забыли пароль, напишите в личные сообщения телеграм-канала{" "}
+          <a
+            href="https://t.me/gerdarenelle"
+            target="_blank"
+            rel="noreferrer"
+            className="underline decoration-muted/60 underline-offset-2 hover:text-ink"
+          >
+            gerdarenelle
+          </a>{" "}
+          с просьбой о восстановлении.
+        </p>
 
         <div className="mt-4">
           <p className="text-xs font-medium text-muted">Google</p>
@@ -245,8 +264,12 @@ export function AccountSettings() {
       <div className="shrink-0 border-t border-rust/40 px-4 py-3">
         <button
           type="button"
-          className="flex h-11 w-full items-center justify-center text-sm text-rust hover:bg-rust/10"
-          onClick={() => setConfirmDelete(true)}
+          className="flex h-11 w-full items-center justify-center bg-[#9b2c2c] text-sm text-[#faf6f4] hover:bg-[#7f2424]"
+          onClick={() => {
+            setDeletePassword("");
+            setDeleteError(null);
+            setConfirmDelete(true);
+          }}
         >
           Удалить учётную запись
         </button>
@@ -262,21 +285,27 @@ export function AccountSettings() {
       <ConfirmDialog
         open={confirmDelete}
         title="Удалить учётную запись?"
-        description={
-          hasPassword && !currentPassword
-            ? "Сначала введите текущий пароль в форме, затем подтвердите удаление. Рукописи на этом устройстве останутся."
-            : "Вход по этой почте перестанет работать. Рукописи на этом устройстве останутся."
-        }
-        onCancel={() => setConfirmDelete(false)}
-        onConfirm={() => {
-          if (hasPassword && !currentPassword) {
-            setConfirmDelete(false);
-            setError("Введите текущий пароль, чтобы удалить учётную запись.");
-            return;
-          }
-          void onDelete();
+        description="Вход по этой почте перестанет работать. Рукописи на этом устройстве останутся, на сервере — нет."
+        confirmClassName="bg-[#9b2c2c] text-[#faf6f4] hover:bg-[#7f2424]"
+        onCancel={() => {
+          if (busy) return;
+          setConfirmDelete(false);
+          setDeleteError(null);
         }}
-      />
+        onConfirm={() => void onDelete()}
+      >
+        <label className="mt-3 flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted">Текущий пароль, если вход по паролю</span>
+          <input
+            type="password"
+            value={deletePassword}
+            onChange={(event) => setDeletePassword(event.target.value)}
+            autoComplete="current-password"
+            className="folio-control text-sm"
+          />
+        </label>
+        {deleteError ? <p className="mt-2 text-sm text-[#9b2c2c]">{deleteError}</p> : null}
+      </ConfirmDialog>
     </form>
   );
 }

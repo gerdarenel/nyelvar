@@ -59,7 +59,7 @@ export function StartMenu() {
         className={cn(
           "flex h-11 items-center gap-2 rounded-sm px-2.5 text-sm font-medium tracking-wide",
           "transition-colors duration-(--motion-quick) ease-(--ease-out)",
-          open ? "bg-paper/16 text-paper" : "text-paper/90 hover:bg-paper/10 hover:text-paper",
+          open ? "bg-chrome-text/16 text-chrome-text" : "text-chrome-text/90 hover:bg-chrome-text/10 hover:text-chrome-text",
         )}
       >
         <Grid2x2 className="size-4" strokeWidth={2.2} />
@@ -172,9 +172,19 @@ export function StartMenu() {
                   Добро пожаловать в Нельвар!
                 </h2>
                 <p className="mt-3 text-sm leading-relaxed">
-                  Вы находитесь в фэнтези-городке, где у вас есть писательский уголок и все время в мире, чтобы погрузиться в свои книги или почитать чужие. Зарегистрируйтесь в системе, чтобы ничего не потерять.
+                  Вы находитесь в фэнтези-городке, где у вас есть писательский уголок и все время в мире, чтобы погрузиться в свои книги или почитать чужие. Для сохранения и синхронизации данных между устройствами нужно зарегистрироваться.
                 </p>
-                <p className="mt-4 text-sm text-ink/45">тгк: герда ренель</p>
+                <p className="mt-4 text-sm text-ink/45">
+                  тгк:{" "}
+                  <a
+                    href="https://t.me/gerdarenelle"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline decoration-ink/30 underline-offset-2 hover:text-ink"
+                  >
+                    герда ренель
+                  </a>
+                </p>
               </div>
             </div>,
             document.body,

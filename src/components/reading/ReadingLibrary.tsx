@@ -23,6 +23,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CoverArt } from "@/components/ui/cover-art";
 import { NumberField } from "@/components/ui/number-field";
 import { TagSelect } from "@/components/ui/tag-select";
+import { TitleField } from "@/components/ui/title-field";
 import { cn } from "@/lib/utils";
 
 export function ReadingLibrary() {
@@ -704,11 +705,12 @@ function ReadingPage() {
           onUpload={(file) => void onCover(file)}
         />
         <div className="flex min-w-0 flex-1 flex-col">
-          <input
+          <TitleField
             value={book.title}
-            onChange={(event) => updateReadingBook(book.id, { title: event.target.value })}
+            label="Название"
             placeholder="Название"
-            className="folio-plain font-display text-xl font-semibold tracking-tight md:text-2xl"
+            onChange={(value) => updateReadingBook(book.id, { title: value })}
+            className="font-display text-xl font-semibold tracking-tight md:text-2xl"
           />
           <input
             value={book.author}
@@ -721,7 +723,7 @@ function ReadingPage() {
             rows={2}
             onChange={(event) => updateReadingBook(book.id, { note: event.target.value })}
             placeholder="Коротко о книге."
-            className="folio-plain mt-1 min-h-0 flex-1 resize-none text-sm leading-relaxed"
+            className="folio-plain mt-1 min-h-0 w-full max-w-[700px] flex-1 resize-none text-sm leading-relaxed"
           />
           <div className="mt-auto flex min-w-0 flex-wrap items-center gap-3 pt-2">
             <TagSelect
@@ -756,66 +758,37 @@ function ReadingPage() {
             ) : null}
           </div>
         </div>
-        <div className="flex w-36 shrink-0 flex-col items-center justify-center self-center rounded-md bg-paper-deep/70 px-2 py-3 md:w-40">
-          <div className="grid w-full grid-cols-[3rem_auto_minmax(0,1fr)] items-center gap-x-1 gap-y-1.5">
-            <input
-              type="date"
-              value={logDate}
-              max={localDay()}
-              onChange={(event) => setLogDate(event.target.value || localDay())}
-              aria-label="Дата чтения"
-              className="folio-control col-span-3 h-8 px-1 text-center text-xs"
-            />
-            <NumberField
-              value={readDraft}
-              onValueChange={setReadDraft}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") return;
-                event.preventDefault();
-                commitPages();
-                event.currentTarget.blur();
-              }}
-              enterKeyHint="send"
-              placeholder="0"
-              aria-label="Страниц прочитано"
-              className="h-8 w-full px-1"
-            />
-            <span className="text-center text-xs text-muted">из</span>
-            <NumberField
-              value={totalDraft}
-              onValueChange={setTotalDraft}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter") return;
-                event.preventDefault();
-                commitPages();
-                event.currentTarget.blur();
-              }}
-              enterKeyHint="send"
-              placeholder="0"
-              aria-label="Страниц всего"
-              className="h-8 w-full px-1"
-            />
-          </div>
-          <p className="mt-1 text-center text-xs text-muted">страниц прочитано</p>
-          <Button type="button" size="sm" onClick={commitPages} className="mt-2 h-10 w-full">
-            обновить
-          </Button>
-          <div className="mt-2 flex w-full items-center gap-1.5">
-            <div
-              className="h-1 min-w-0 flex-1 overflow-hidden bg-line/70"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={percent}
-            >
-              <div className="h-full origin-left bg-moss" style={{ transform: `scaleX(${percent / 100})` }} />
-            </div>
-            <span className="shrink-0 text-xs tabular-nums text-muted">{percent}%</span>
-          </div>
+        <div className="hidden w-36 shrink-0 flex-col items-center justify-center self-center rounded-md bg-paper-deep/70 px-2 py-3 md:flex md:w-40">
+          <PagesReadFields
+            logDate={logDate}
+            readDraft={readDraft}
+            totalDraft={totalDraft}
+            percent={percent}
+            onLogDate={setLogDate}
+            onReadDraft={setReadDraft}
+            onTotalDraft={setTotalDraft}
+            onCommit={commitPages}
+          />
         </div>
       </div>
 
-      <section className="mt-6 flex min-h-0 flex-1 flex-col px-4 pb-4 md:px-5">
+      <div className="mx-4 mb-1 md:hidden">
+        <div className="rounded-md bg-paper-deep/70 px-3 py-3">
+          <PagesReadFields
+            wide
+            logDate={logDate}
+            readDraft={readDraft}
+            totalDraft={totalDraft}
+            percent={percent}
+            onLogDate={setLogDate}
+            onReadDraft={setReadDraft}
+            onTotalDraft={setTotalDraft}
+            onCommit={commitPages}
+          />
+        </div>
+      </div>
+
+      <section className="mt-3 flex min-h-0 flex-1 flex-col px-4 pb-4 md:mt-6 md:px-5">
         <div className="flex shrink-0 items-end gap-1">
           <JournalTab active={tab === "notes"} onClick={() => setTab("notes")}>
             записи
@@ -1031,6 +1004,126 @@ function QuoteCard({
         </ul>
       ) : null}
     </li>
+  );
+}
+
+function PagesReadFields({
+  wide = false,
+  logDate,
+  readDraft,
+  totalDraft,
+  percent,
+  onLogDate,
+  onReadDraft,
+  onTotalDraft,
+  onCommit,
+}: {
+  wide?: boolean;
+  logDate: string;
+  readDraft: string;
+  totalDraft: string;
+  percent: number;
+  onLogDate: (value: string) => void;
+  onReadDraft: (value: string) => void;
+  onTotalDraft: (value: string) => void;
+  onCommit: () => void;
+}) {
+  function onEnter(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    onCommit();
+    event.currentTarget.blur();
+  }
+
+  const dateClass =
+    "folio-control box-border h-8 w-full min-w-0 max-w-full px-2 text-center text-xs [&::-webkit-date-and-time-value]:text-center";
+  const dateField = (mobile: boolean) => (
+    <input
+      type="date"
+      value={logDate}
+      max={localDay()}
+      onChange={(event) => onLogDate(event.target.value || localDay())}
+      aria-label="Дата чтения"
+      className={mobile ? `${dateClass} appearance-none` : dateClass}
+    />
+  );
+  const readField = (
+    <NumberField
+      value={readDraft}
+      onValueChange={onReadDraft}
+      onKeyDown={onEnter}
+      enterKeyHint="send"
+      placeholder="0"
+      aria-label="Страниц прочитано"
+      className="h-8 w-full min-w-0 px-1 text-center"
+    />
+  );
+  const totalField = (
+    <NumberField
+      value={totalDraft}
+      onValueChange={onTotalDraft}
+      onKeyDown={onEnter}
+      enterKeyHint="send"
+      placeholder="0"
+      aria-label="Страниц всего"
+      className="h-8 w-full min-w-0 px-1 text-center"
+    />
+  );
+
+  if (wide) {
+    return (
+      <div className="flex w-full flex-col items-stretch">
+        {dateField(true)}
+        <div className="mt-1.5 grid w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2">
+          {readField}
+          <span className="text-center text-xs text-muted">из</span>
+          {totalField}
+        </div>
+        <p className="mt-1 text-center text-xs text-muted">страниц прочитано</p>
+        <Button type="button" size="sm" onClick={onCommit} className="mt-2 h-10 w-full">
+          обновить
+        </Button>
+        <div className="mt-2 flex w-full items-center gap-1.5">
+          <div
+            className="h-1 min-w-0 flex-1 overflow-hidden bg-line/70"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+          >
+            <div className="h-full origin-left bg-moss" style={{ transform: `scaleX(${percent / 100})` }} />
+          </div>
+          <span className="shrink-0 text-xs tabular-nums text-muted">{percent}%</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="grid w-full grid-cols-[3rem_auto_minmax(0,1fr)] items-center gap-x-1 gap-y-1.5">
+        <div className="col-span-3 min-w-0">{dateField(false)}</div>
+        {readField}
+        <span className="text-center text-xs text-muted">из</span>
+        {totalField}
+      </div>
+      <p className="mt-1 text-center text-xs text-muted">страниц прочитано</p>
+      <Button type="button" size="sm" onClick={onCommit} className="mt-2 h-10 w-full">
+        обновить
+      </Button>
+      <div className="mt-2 flex w-full items-center gap-1.5">
+        <div
+          className="h-1 min-w-0 flex-1 overflow-hidden bg-line/70"
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={percent}
+        >
+          <div className="h-full origin-left bg-moss" style={{ transform: `scaleX(${percent / 100})` }} />
+        </div>
+        <span className="shrink-0 text-xs tabular-nums text-muted">{percent}%</span>
+      </div>
+    </>
   );
 }
 

@@ -2,6 +2,7 @@ import { genericOAuthClient } from "better-auth/client/plugins";
 import { createAuthClient } from "better-auth/react";
 import { runPreSignInSignOut, runSignOut } from "../../../scripts/sign-out-plan.mjs";
 import { GROK_PROVIDERS } from "./providers";
+import { requestPasswordResetEmail } from "./request-reset";
 
 /**
  * Better Auth client for this React SPA (browser-side).
@@ -190,6 +191,17 @@ export async function linkGoogleAccount(): Promise<void> {
 
 export function clearLocalSession(): void {
   setBearerToken(null);
+}
+
+export function storeSessionToken(token: string | null) {
+  setBearerToken(token);
+}
+
+export async function requestPasswordReset(email: string) {
+  const result = await requestPasswordResetEmail({ data: { email } });
+  if (result && "ok" in result && result.ok === false) {
+    throw new Error(result.error || "Не удалось отправить письмо.");
+  }
 }
 
 /**

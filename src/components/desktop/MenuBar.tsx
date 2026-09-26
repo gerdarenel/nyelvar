@@ -1,10 +1,34 @@
-import { useEffect, useState } from "react";
-import { format } from "date-fns";
+import { useEffect, useRef, useState } from "react";
+import {
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  endOfWeek,
+  format,
+  isSameMonth,
+  isToday,
+  startOfMonth,
+  startOfWeek,
+} from "date-fns";
 import { ru } from "date-fns/locale";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { type WindowId } from "@/lib/folio";
 import { useFolioStore } from "@/lib/store";
 import { StartMenu } from "@/components/desktop/StartMenu";
+
+const WEEKDAYS = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"];
+
+const DOCK: { id: WindowId; label: string }[] = [
+  { id: "tracker", label: "Писательский трекер" },
+  { id: "reading", label: "Библиотека" },
+  { id: "cafe", label: "Кафе" },
+  { id: "notes", label: "Блокнот" },
+  { id: "tasks", label: "Ежедневник" },
+  { id: "awards", label: "Достижения" },
+  { id: "account", label: "Настройки" },
+  { id: "personalize", label: "Оформление" },
+];
 
 export function MenuBar() {
   const [now, setNow] = useState<Date | null>(null);
@@ -19,77 +43,131 @@ export function MenuBar() {
   }, []);
 
   return (
-    <footer className="absolute inset-x-0 bottom-0 z-50 flex h-12 items-center gap-1 border-t border-paper/10 bg-ink-soft/92 px-1.5 text-paper backdrop-blur-sm md:px-2">
+    <footer className="absolute inset-x-0 bottom-0 z-50 flex h-12 items-center gap-1 border-t border-chrome-text/10 bg-chrome-soft/92 px-1.5 text-chrome-text backdrop-blur-sm md:px-2">
       <StartMenu />
-      <nav className="flex min-w-0 flex-1 items-center gap-0.5">
-        {windows.tracker.open ? (
-          <MenuItem
-            label="Писательский трекер"
-            active={focusedId === "tracker"}
-            onClick={() => openWindow("tracker")}
-          />
-        ) : null}
-        {windows.reading.open ? (
-          <MenuItem
-            label="Библиотека"
-            active={focusedId === "reading"}
-            onClick={() => openWindow("reading")}
-          />
-        ) : null}
-        {windows.cafe.open ? (
-          <MenuItem
-            label="Кафе"
-            active={focusedId === "cafe"}
-            onClick={() => openWindow("cafe")}
-          />
-        ) : null}
-        {windows.notes.open ? (
-          <MenuItem
-            label="Блокнот"
-            active={focusedId === "notes"}
-            onClick={() => openWindow("notes")}
-          />
-        ) : null}
-        {windows.awards.open ? (
-          <MenuItem
-            label="Достижения"
-            active={focusedId === "awards"}
-            onClick={() => openWindow("awards")}
-          />
-        ) : null}
-        {windows.account.open ? (
-          <MenuItem
-            label="Настройки"
-            active={focusedId === "account"}
-            onClick={() => openWindow("account")}
-          />
-        ) : null}
-        {windows.personalize.open ? (
-          <MenuItem
-            label="Оформление"
-            active={focusedId === "personalize"}
-            onClick={() => openWindow("personalize")}
-          />
-        ) : null}
-      </nav>
-      {now ? (
-        <time
-          dateTime={now.toISOString()}
-          className="shrink-0 px-1 font-mono text-[10px] leading-tight tabular-nums text-paper/80 sm:px-2 sm:text-xs"
-        >
-          {format(now, "EEE d MMM · HH:mm", { locale: ru })}
-        </time>
-      ) : (
-        <span className="h-4 w-16 shrink-0 sm:w-28" />
-      )}
+      <div className="flex min-w-0 flex-1 items-center">
+        <nav className="hidden min-w-0 items-center gap-0.5 md:flex">
+        {DOCK.map((item) =>
+          windows[item.id].open ? (
+            <MenuItem
+              key={item.id}
+              label={item.label}
+              active={focusedId === item.id}
+              onClick={() => openWindow(item.id)}
+            />
+          ) : null,
+        )}
+        </nav>
+      </div>
+      {now ? <ClockButton now={now} /> : <span className="h-4 w-16 shrink-0 sm:w-28" />}
     </footer>
+  );
+}
+
+function ClockButton({ now }: { now: Date }) {
+  const [open, setOpen] = useState(false);
+  const [month, setMonth] = useState(() => startOfMonth(now));
+  const root = useRef<HTMLDivElement>(null);
+  const days = eachDayOfInterval({
+    start: startOfWeek(startOfMonth(month), { weekStartsOn: 1 }),
+    end: endOfWeek(endOfMonth(month), { weekStartsOn: 1 }),
+  });
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointer(event: PointerEvent) {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    window.addEventListener("pointerdown", onPointer);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("pointerdown", onPointer);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={root} className="relative shrink-0">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen((value) => {
+            const next = !value;
+            if (next) setMonth(startOfMonth(now));
+            return next;
+          });
+        }}
+        className={cn(
+          "px-1 font-mono text-[10px] leading-tight tabular-nums sm:px-2 sm:text-xs",
+          open ? "text-chrome-text" : "text-chrome-text/80 hover:text-chrome-text",
+        )}
+      >
+        <time dateTime={now.toISOString()}>{format(now, "EEEEEE d MMM · HH:mm", { locale: ru })}</time>
+      </button>
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Календарь"
+          className="absolute right-0 bottom-[calc(100%+0.35rem)] z-50 w-60 bg-window p-3 text-ink shadow-[var(--shadow-window)]"
+        >
+          <div className="mb-2 flex items-center justify-between gap-1">
+            <button
+              type="button"
+              aria-label="Предыдущий месяц"
+              onClick={() => setMonth((value) => addMonths(value, -1))}
+              className="flex size-7 items-center justify-center text-ink hover:bg-ink/6"
+            >
+              <ChevronLeft className="size-4" />
+            </button>
+            <p className="text-sm font-medium capitalize">{format(month, "LLLL yyyy", { locale: ru })}</p>
+            <button
+              type="button"
+              aria-label="Следующий месяц"
+              onClick={() => setMonth((value) => addMonths(value, 1))}
+              className="flex size-7 items-center justify-center text-ink hover:bg-ink/6"
+            >
+              <ChevronRight className="size-4" />
+            </button>
+          </div>
+          <div className="grid grid-cols-7 gap-y-1">
+            {WEEKDAYS.map((day) => (
+              <span key={day} className="text-center text-[11px] text-muted">
+                {day}
+              </span>
+            ))}
+            {days.map((day) => {
+              const inMonth = isSameMonth(day, month);
+              const today = isToday(day);
+              return (
+                <span
+                  key={format(day, "yyyy-MM-dd")}
+                  className={cn(
+                    "flex h-7 items-center justify-center text-xs tabular-nums",
+                    !inMonth && "text-muted/40",
+                    inMonth && !today && "text-ink",
+                    today && "bg-rust text-paper",
+                  )}
+                >
+                  {format(day, "d")}
+                </span>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
 function focusedWindow(windows: ReturnType<typeof useFolioStore.getState>["windows"]): WindowId | null {
   let best: WindowId | null = null;
   let z = -1;
-  (["tracker", "library", "reading", "personalize", "account", "notes", "cafe", "awards"] as const).forEach((id) => {
+  (["library", ...DOCK.map((item) => item.id)] as WindowId[]).forEach((id) => {
     if (windows[id].open && !windows[id].minimized && windows[id].z >= z) {
       z = windows[id].z;
       best = id;
@@ -113,7 +191,7 @@ function MenuItem({
       onClick={onClick}
       className={cn(
         "h-8 rounded-sm px-2.5 text-sm transition-colors duration-(--motion-quick) ease-(--ease-out)",
-        active ? "bg-paper/12 text-paper" : "text-paper/75 hover:bg-paper/8 hover:text-paper",
+        active ? "bg-chrome-text/12 text-chrome-text" : "text-chrome-text/75 hover:bg-chrome-text/8 hover:text-chrome-text",
       )}
     >
       {label}

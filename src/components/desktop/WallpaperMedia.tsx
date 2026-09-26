@@ -1,28 +1,44 @@
 import { useEffect, useState } from "react";
-import { visibleWallpaper } from "@/lib/theme";
+import { visibleWallpaper, wallpaperMotionAllowed } from "@/lib/theme";
+import { cn } from "@/lib/utils";
+
+function isGif(src: string) {
+  return src.endsWith(".gif") || src.startsWith("data:image/gif");
+}
+
+function isVideo(src: string) {
+  return src.endsWith(".mp4");
+}
+
+export function useWallpaperMotionAllowed() {
+  const [allowed, setAllowed] = useState(false);
+  useEffect(() => {
+    setAllowed(wallpaperMotionAllowed());
+  }, []);
+  return allowed;
+}
 
 export function WallpaperMedia({ src, className }: { src: string; className?: string }) {
-  const animated = src.endsWith(".gif") || src.endsWith(".mp4");
-  const poster = animated ? visibleWallpaper(src, false) : src;
-  const [shown, setShown] = useState(poster);
+  const allowMotion = useWallpaperMotionAllowed();
+  const animated = allowMotion && (isGif(src) || isVideo(src));
+  const still = isGif(src) || isVideo(src) ? visibleWallpaper(src, false) : src;
+  const [gifReady, setGifReady] = useState(false);
+  const [frozen, setFrozen] = useState<string | null>(null);
+  const placed = className?.includes("absolute") ?? false;
 
   useEffect(() => {
-    if (!animated) {
-      setShown(src);
+    if (!animated || !isGif(src)) {
+      setGifReady(false);
       return;
     }
-    setShown(poster);
+    setGifReady(false);
     let cancelled = false;
     const start = () => {
       if (cancelled) return;
-      if (src.endsWith(".mp4")) {
-        setShown(src);
-        return;
-      }
       const image = new Image();
-      image.decoding = "async";
+      image.decoding = "sync";
       image.onload = () => {
-        if (!cancelled) setShown(src);
+        if (!cancelled) setGifReady(true);
       };
       image.src = src;
     };
@@ -33,10 +49,45 @@ export function WallpaperMedia({ src, className }: { src: string; className?: st
       if (idle !== undefined) window.cancelIdleCallback(idle);
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [src, animated, poster]);
+  }, [animated, src]);
 
-  if (shown.endsWith(".mp4")) {
-    return <video src={shown} autoPlay loop muted playsInline className={className} />;
-  }
-  return <img src={shown} alt="" decoding="async" className={className} />;
+  useEffect(() => {
+    if (allowMotion || !isGif(still)) {
+      setFrozen(null);
+      return;
+    }
+    let cancelled = false;
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth || 1;
+      canvas.height = image.naturalHeight || 1;
+      canvas.getContext("2d")?.drawImage(image, 0, 0);
+      if (!cancelled) setFrozen(canvas.toDataURL("image/jpeg", 0.86));
+    };
+    image.src = still;
+    return () => {
+      cancelled = true;
+    };
+  }, [allowMotion, still]);
+
+  const base = !allowMotion && isGif(still) ? frozen ?? undefined : still;
+
+  return (
+    <span
+      key={animated ? `motion:${src}` : `still:${still}`}
+      className={cn("block overflow-hidden", className)}
+      style={placed ? undefined : { position: "relative" }}
+    >
+      {base ? (
+        <img src={base} alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
+      ) : null}
+      {animated && isGif(src) && gifReady ? (
+        <img src={src} alt="" draggable={false} className="absolute inset-0 size-full object-cover" />
+      ) : null}
+      {animated && isVideo(src) ? (
+        <video src={src} autoPlay loop muted playsInline className="absolute inset-0 size-full object-cover" />
+      ) : null}
+    </span>
+  );
 }

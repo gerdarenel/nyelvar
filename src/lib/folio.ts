@@ -29,6 +29,8 @@ export function writerTabOf(tag: string | null): WriterTab {
   return "active";
 }
 
+export type RecordPart = "chapter" | "prologue" | "epilogue";
+
 export type WritingRecord = {
   id: string;
   date: string;
@@ -36,7 +38,19 @@ export type WritingRecord = {
   words: number;
   note: string;
   chapterFinished: boolean;
+  part?: RecordPart;
 };
+
+export function recordPart(record: Pick<WritingRecord, "part">): RecordPart {
+  return record.part === "prologue" || record.part === "epilogue" ? record.part : "chapter";
+}
+
+export function recordChapterLabel(record: WritingRecord): string {
+  const part = recordPart(record);
+  if (part === "prologue") return "Пролог";
+  if (part === "epilogue") return "Эпилог";
+  return `Глава ${record.chapter}`;
+}
 
 export type ManuscriptRound = {
   id: string;
@@ -60,11 +74,47 @@ export type Book = {
   startingWords: number;
   startingChapters: number;
   tag: string | null;
+  cycle: string | null;
   records: WritingRecord[];
   rounds: ManuscriptRound[];
 };
 
-export type WindowId = "tracker" | "library" | "reading" | "personalize" | "account" | "notes" | "cafe" | "awards";
+export type WindowId = "tracker" | "library" | "reading" | "personalize" | "account" | "notes" | "cafe" | "awards" | "tasks";
+
+export type PlannerKind = "task" | "event";
+
+export type PlannerItem = {
+  id: string;
+  date: string;
+  kind: PlannerKind | null;
+  text: string;
+  done: boolean;
+  important: boolean;
+  time: string;
+};
+
+export function sanitizePlanner(value: unknown): PlannerItem[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Partial<PlannerItem>;
+    if (typeof row.id !== "string" || typeof row.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(row.date)) {
+      return [];
+    }
+    const kind = row.kind === "event" || row.kind === "task" ? row.kind : row.kind === null ? null : "task";
+    return [
+      {
+        id: row.id,
+        date: row.date,
+        kind,
+        text: typeof row.text === "string" ? row.text : "",
+        done: Boolean(row.done),
+        important: kind === "task" && Boolean(row.important),
+        time: kind === "event" && typeof row.time === "string" ? row.time.slice(0, 5) : "",
+      },
+    ];
+  });
+}
 
 export type CountUnit = "words" | "chars";
 
@@ -91,6 +141,7 @@ export type NodeStatus = "complete" | "current" | "locked";
 
 export type PathNode = {
   n: number;
+  kind: RecordPart;
   status: NodeStatus;
   words: number;
   fill: number;
@@ -152,7 +203,9 @@ export function getProgress(book: Book): BookProgress {
   const loggedWords = book.records.reduce((sum, record) => sum + record.words, 0);
   const totalWords = startingWords + loggedWords;
   const finished = new Set(
-    book.records.filter((record) => record.chapterFinished).map((record) => record.chapter),
+    book.records
+      .filter((record) => recordPart(record) === "chapter" && record.chapterFinished)
+      .map((record) => record.chapter),
   );
   for (let n = 1; n <= startingChapters; n += 1) {
     finished.add(n);
@@ -166,24 +219,47 @@ export function getProgress(book: Book): BookProgress {
   const allDone = current > book.chapterCount;
   const active = allDone ? null : current;
   const wordsInCurrent = active
-    ? book.records.filter((record) => record.chapter === active).reduce((sum, record) => sum + record.words, 0)
+    ? book.records
+        .filter((record) => recordPart(record) === "chapter" && record.chapter === active)
+        .reduce((sum, record) => sum + record.words, 0)
     : 0;
   const goal = Math.max(1, book.wordsPerChapter);
   const currentFill = allDone ? 1 : Math.min(1, wordsInCurrent / goal);
 
-  const nodes: PathNode[] = Array.from({ length: book.chapterCount }, (_, index) => {
+  const chapterNodes: PathNode[] = Array.from({ length: book.chapterCount }, (_, index) => {
     const n = index + 1;
     const words = book.records
-      .filter((record) => record.chapter === n)
+      .filter((record) => recordPart(record) === "chapter" && record.chapter === n)
       .reduce((sum, record) => sum + record.words, 0);
     const status: NodeStatus = allDone || n < current ? "complete" : n === current ? "current" : "locked";
     const fill = status === "complete" ? 1 : status === "current" ? currentFill : 0;
-    return { n, status, words, fill };
+    return { n, kind: "chapter", status, words, fill };
   });
 
-  const completedCount = nodes.filter((node) => node.status === "complete").length;
+  const extra = (kind: "prologue" | "epilogue", n: number): PathNode | null => {
+    const rows = book.records.filter((record) => recordPart(record) === kind);
+    if (rows.length === 0) return null;
+    const words = rows.reduce((sum, record) => sum + record.words, 0);
+    const done = rows.some((record) => record.chapterFinished);
+    return {
+      n,
+      kind,
+      words,
+      status: done ? "complete" : "current",
+      fill: done ? 1 : Math.min(1, words / goal),
+    };
+  };
+  const prologue = extra("prologue", 0);
+  const epilogue = extra("epilogue", book.chapterCount + 1);
+  const nodes = [prologue, ...chapterNodes, epilogue].filter((node): node is PathNode => node !== null);
+
+  const completedCount = chapterNodes.filter((node) => node.status === "complete").length;
   const maxUnlocked = allDone ? book.chapterCount : current;
-  const fraction = allDone ? 1 : (completedCount + currentFill) / Math.max(1, book.chapterCount);
+  const extraDone = [prologue, epilogue].filter((node) => node?.status === "complete").length;
+  const extraFill = [prologue, epilogue].reduce((sum, node) => sum + (node && node.status !== "complete" ? node.fill : 0), 0);
+  const totalUnits = book.chapterCount + (prologue ? 1 : 0) + (epilogue ? 1 : 0);
+  const chapterFraction = allDone ? book.chapterCount : completedCount + currentFill;
+  const fraction = (chapterFraction + extraDone + extraFill) / Math.max(1, totalUnits);
   const percent = Math.round(Math.min(100, Math.max(0, fraction * 100)));
 
   return {
@@ -212,7 +288,9 @@ export function ruPlural(n: number, one: string, few: string, many: string): str
 
 export function finishedChapterSet(book: Book): Set<number> {
   const finished = new Set(
-    book.records.filter((record) => record.chapterFinished).map((record) => record.chapter),
+    book.records
+      .filter((record) => recordPart(record) === "chapter" && record.chapterFinished)
+      .map((record) => record.chapter),
   );
   const starting = Math.min(book.chapterCount, Math.max(0, book.startingChapters ?? 0));
   for (let n = 1; n <= starting; n += 1) finished.add(n);
@@ -361,6 +439,7 @@ export const SEED_BOOKS: Book[] = [
     startingWords: 0,
     startingChapters: 0,
     tag: "draft2",
+    cycle: null,
     rounds: [],
     records: [
       {
@@ -414,6 +493,7 @@ export const SEED_BOOKS: Book[] = [
     startingWords: 0,
     startingChapters: 0,
     tag: "draft1",
+    cycle: null,
     rounds: [],
     records: [],
   },

@@ -11,6 +11,9 @@ import {
   type WindowState,
   type WritingRecord,
   type TrackerTag,
+  type PlannerItem,
+  type PlannerKind,
+  sanitizePlanner,
   DEFAULT_TAGS,
   withLockedTags,
   clampChapters,
@@ -23,7 +26,7 @@ import {
   newId,
 } from "@/lib/folio";
 import { dueMailIds } from "@/lib/letter";
-import { type ThemeId, themeOf } from "@/lib/theme";
+import { type ThemeId, type ColorScheme, themeOf } from "@/lib/theme";
 import type { DeskPayload } from "@/lib/folio-desk";
 
 type Windows = Record<WindowId, WindowState>;
@@ -53,6 +56,7 @@ type FolioState = {
   windows: Windows;
   nextZ: number;
   themeId: ThemeId;
+  colorScheme: ColorScheme;
   wallpaperSrc: string | null;
   wallpaperMotion: boolean;
   customWallpaper: string | null;
@@ -61,7 +65,11 @@ type FolioState = {
   tags: TrackerTag[];
   notes: DeskNote[];
   activeNoteId: string | null;
+  planner: PlannerItem[];
+  hourClock: "12" | "24";
+  seenAwards: Record<string, number> | null;
   setTheme: (id: ThemeId) => void;
+  setColorScheme: (scheme: ColorScheme) => void;
   setWallpaper: (src: string | null) => void;
   setWallpaperMotion: (on: boolean) => void;
   setCustomWallpaper: (dataUrl: string) => void;
@@ -70,6 +78,12 @@ type FolioState = {
   addNote: () => string;
   updateNote: (id: string, patch: Partial<Pick<DeskNote, "title" | "body">>) => void;
   deleteNote: (id: string) => void;
+  addPlannerItem: (date: string, kind: PlannerKind | null) => string;
+  updatePlannerItem: (id: string, patch: Partial<Omit<PlannerItem, "id">>) => void;
+  deletePlannerItem: (id: string) => void;
+  reorderPlannerItem: (id: string, beforeId: string | null) => void;
+  setHourClock: (clock: "12" | "24") => void;
+  ackAwards: (entries: { id: string; count: number }[]) => void;
   setTrackerTags: (tags: TrackerTag[]) => void;
   addBook: () => void;
   updateBook: (id: string, patch: Partial<Book>) => void;
@@ -95,6 +109,7 @@ type FolioState = {
   toggleMinimized: (id: WindowId) => void;
   toggleMaximized: (id: WindowId) => void;
   hydrateDesk: (desk: DeskPayload) => void;
+  resetDesk: () => void;
 };
 
 const initialWindows: Windows = {
@@ -106,6 +121,7 @@ const initialWindows: Windows = {
   notes: { open: false, z: 1, x: 180, y: 40, w: 640, h: 480, minimized: false, maximized: false, restore: null },
   cafe: { open: false, z: 1, x: 160, y: 32, w: 720, h: 520, minimized: false, maximized: false, restore: null },
   awards: { open: false, z: 1, x: 190, y: 48, w: 680, h: 560, minimized: false, maximized: false, restore: null },
+  tasks: { open: false, z: 1, x: 120, y: 28, w: 920, h: 640, minimized: false, maximized: false, restore: null },
 };
 
 function nextStackZ(windows: Windows, nextZ: number) {
@@ -133,6 +149,30 @@ function hydrateWindow(id: WindowId, saved: WindowState | undefined): WindowStat
   return { ...base, ...saved, open: false, minimized: false, restore: saved.restore ?? null };
 }
 
+function timeTo12(time: string) {
+  const match = time.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return time;
+  const minutes = Number(match[2]);
+  let hour = Number(match[1]);
+  if (hour > 23 || minutes > 59) return time;
+  const period = hour >= 12 ? "PM" : "AM";
+  hour %= 12;
+  if (hour === 0) hour = 12;
+  return `${hour}:${match[2]} ${period}`;
+}
+
+function timeTo24(time: string) {
+  const match = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return time;
+  const minutes = Number(match[2]);
+  let hour = Number(match[1]);
+  if (hour < 1 || hour > 12 || minutes > 59) return time;
+  const pm = match[3].toUpperCase() === "PM";
+  if (pm && hour < 12) hour += 12;
+  if (!pm && hour === 12) hour = 0;
+  return `${String(hour).padStart(2, "0")}:${match[2]}`;
+}
+
 export const useFolioStore = create<FolioState>()(
   persist(
     (set, get) => ({
@@ -148,14 +188,18 @@ export const useFolioStore = create<FolioState>()(
       windows: initialWindows,
       nextZ: 3,
       themeId: "autumn",
+      colorScheme: "light",
       wallpaperSrc: null,
-      wallpaperMotion: true,
+      wallpaperMotion: false,
       customWallpaper: null,
       inbox: [],
       cafe: DEFAULT_CAFE,
       tags: DEFAULT_TAGS,
       notes: [],
       activeNoteId: null,
+      planner: [],
+      hourClock: "24",
+      seenAwards: null,
 
       setTheme: (id) =>
         set((state) => {
@@ -165,6 +209,7 @@ export const useFolioStore = create<FolioState>()(
             wallpaperSrc: custom ? state.wallpaperSrc : themeOf(id).wallpaper,
           };
         }),
+      setColorScheme: (scheme) => set({ colorScheme: scheme }),
       setWallpaper: (src) => set({ wallpaperSrc: src }),
       setWallpaperMotion: (on) => set({ wallpaperMotion: on }),
       setCustomWallpaper: (dataUrl) => set({ customWallpaper: dataUrl, wallpaperSrc: dataUrl }),
@@ -200,6 +245,67 @@ export const useFolioStore = create<FolioState>()(
             activeNoteId: state.activeNoteId === id ? (notes[0]?.id ?? null) : state.activeNoteId,
           };
         }),
+      addPlannerItem: (date, kind) => {
+        const id = newId("plan");
+        const item: PlannerItem = { id, date, kind, text: "", done: false, important: false, time: "" };
+        set((state) => ({ planner: [...state.planner, item] }));
+        return id;
+      },
+      updatePlannerItem: (id, patch) =>
+        set((state) => ({
+          planner: state.planner.map((item) => {
+            if (item.id !== id) return item;
+            const next = { ...item, ...patch };
+            if (next.kind !== "task") next.important = false;
+            if (next.kind !== "event") next.time = "";
+            return next;
+          }),
+        })),
+      deletePlannerItem: (id) => set((state) => ({ planner: state.planner.filter((item) => item.id !== id) })),
+      reorderPlannerItem: (id, beforeId) =>
+        set((state) => {
+          const from = state.planner.findIndex((item) => item.id === id);
+          if (from < 0 || beforeId === id) return state;
+          const item = state.planner[from];
+          const rest = state.planner.filter((entry) => entry.id !== id);
+          let insertAt = rest.length;
+          if (beforeId) {
+            const target = rest.findIndex((entry) => entry.id === beforeId && entry.date === item.date);
+            if (target < 0) return state;
+            insertAt = target;
+          } else {
+            let last = -1;
+            rest.forEach((entry, index) => {
+              if (entry.date === item.date) last = index;
+            });
+            insertAt = last < 0 ? rest.length : last + 1;
+          }
+          const planner = [...rest.slice(0, insertAt), item, ...rest.slice(insertAt)];
+          return { planner };
+        }),
+      setHourClock: (clock) =>
+        set((state) => {
+          if (state.hourClock === clock) return state;
+          const convert = clock === "12" ? timeTo12 : timeTo24;
+          return {
+            hourClock: clock,
+            planner: state.planner.map((item) => (item.time ? { ...item, time: convert(item.time) } : item)),
+          };
+        }),
+      ackAwards: (entries) =>
+        set((state) => {
+          const prev = state.seenAwards ?? {};
+          let changed = state.seenAwards == null;
+          const next = { ...prev };
+          for (const entry of entries) {
+            if (entry.count <= 0) continue;
+            if ((next[entry.id] ?? 0) < entry.count) {
+              next[entry.id] = entry.count;
+              changed = true;
+            }
+          }
+          return changed ? { seenAwards: next } : state;
+        }),
 
       setTrackerTags: (tags) =>
         set((state) => {
@@ -228,6 +334,7 @@ export const useFolioStore = create<FolioState>()(
           startingWords: 0,
           startingChapters: 0,
           tag: "draft1",
+          cycle: null,
           rounds: [],
           records: [],
         };
@@ -447,9 +554,13 @@ export const useFolioStore = create<FolioState>()(
         }),
 
       hydrateDesk: (desk) =>
-        set((state) => {
+        set(() => {
           const books = desk.books.filter((book) => !SEED_BOOK_IDS.has(book.id));
-          const shelf = (desk.shelf ?? state.shelf).filter((book) => !SEED_SHELF_IDS.has(book.id));
+          const shelf = (desk.shelf ?? []).filter((book) => !SEED_SHELF_IDS.has(book.id));
+          const readingStats = (desk.readingStats ?? ["day", "booksMonth"]).filter(
+            (item): item is StatId =>
+              item === "day" || item === "month" || item === "year" || item === "booksMonth" || item === "booksYear",
+          );
           return {
             books,
             activeBookId:
@@ -459,20 +570,51 @@ export const useFolioStore = create<FolioState>()(
               desk.activeReadingId && shelf.some((book) => book.id === desk.activeReadingId)
                 ? desk.activeReadingId
                 : null,
-            ...(desk.notes !== undefined ? { notes: desk.notes } : {}),
-            ...(desk.activeNoteId !== undefined ? { activeNoteId: desk.activeNoteId } : {}),
-            ...(desk.tags !== undefined ? { tags: withLockedTags(desk.tags) } : {}),
-            ...(desk.themeId ? { themeId: desk.themeId } : {}),
-            ...(desk.wallpaperSrc !== undefined ? { wallpaperSrc: desk.wallpaperSrc } : {}),
-            ...(desk.wallpaperMotion !== undefined ? { wallpaperMotion: desk.wallpaperMotion } : {}),
-            ...(desk.customWallpaper !== undefined ? { customWallpaper: desk.customWallpaper } : {}),
-            ...(desk.cafe ? { cafe: mergeCafe(desk.cafe) } : {}),
-            ...(desk.readingStats !== undefined ? { readingStats: desk.readingStats } : {}),
-            ...(desk.shelfFilter ? { shelfFilter: desk.shelfFilter } : {}),
-            ...(desk.libraryPane ? { libraryPane: desk.libraryPane } : {}),
-            ...(desk.countUnit ? { countUnit: desk.countUnit } : {}),
-            ...(desk.inbox !== undefined ? { inbox: desk.inbox } : {}),
+            notes: desk.notes ?? [],
+            planner: sanitizePlanner(desk.planner ?? []),
+            activeNoteId: desk.activeNoteId ?? null,
+            tags: withLockedTags(desk.tags ?? DEFAULT_TAGS),
+            themeId: desk.themeId ?? "autumn",
+            colorScheme: desk.colorScheme ?? "light",
+            wallpaperSrc: desk.wallpaperSrc ?? null,
+            wallpaperMotion: desk.wallpaperMotion ?? false,
+            customWallpaper: desk.customWallpaper ?? null,
+            cafe: mergeCafe(desk.cafe),
+            readingStats: readingStats.length > 0 ? readingStats : ["day", "booksMonth"],
+            shelfFilter: desk.shelfFilter ?? "reading",
+            libraryPane: desk.libraryPane ?? "stats",
+            countUnit: desk.countUnit ?? "words",
+            inbox: desk.inbox ?? [],
+            seenAwards: desk.seenAwards ?? null,
+            hourClock: desk.hourClock === "12" ? "12" : "24",
           };
+        }),
+
+      resetDesk: () =>
+        set({
+          books: [],
+          activeBookId: null,
+          shelf: [],
+          activeReadingId: null,
+          notes: [],
+          activeNoteId: null,
+          planner: [],
+          hourClock: "24",
+          inbox: [],
+          seenAwards: null,
+          tags: DEFAULT_TAGS,
+          themeId: "autumn",
+          colorScheme: "light",
+          wallpaperSrc: null,
+          wallpaperMotion: false,
+          customWallpaper: null,
+          cafe: DEFAULT_CAFE,
+          readingStats: ["day", "booksMonth"],
+          shelfFilter: "reading",
+          libraryPane: "stats",
+          countUnit: "words",
+          windows: initialWindows,
+          nextZ: 3,
         }),
     }),
     {
@@ -485,13 +627,34 @@ export const useFolioStore = create<FolioState>()(
             startingWords: book.startingWords ?? 0,
             startingChapters: book.startingChapters ?? 0,
             tag: book.tag ?? null,
+            cycle: book.cycle?.trim() || null,
             rounds: (book.rounds ?? []).map((round) => ({
               ...round,
               startingWords: round.startingWords ?? 0,
               startingChapters: round.startingChapters ?? 0,
-              records: (round.records ?? []).map((record) => ({ ...record, note: record.note ?? "" })),
+              records: (round.records ?? []).map(
+                (record): WritingRecord => ({
+                  id: record.id,
+                  date: record.date,
+                  chapter: record.chapter,
+                  words: record.words,
+                  note: record.note ?? "",
+                  chapterFinished: Boolean(record.chapterFinished),
+                  part: record.part === "prologue" ? "prologue" : record.part === "epilogue" ? "epilogue" : "chapter",
+                }),
+              ),
             })),
-            records: (book.records ?? []).map((record) => ({ ...record, note: record.note ?? "" })),
+            records: (book.records ?? []).map(
+              (record): WritingRecord => ({
+                id: record.id,
+                date: record.date,
+                chapter: record.chapter,
+                words: record.words,
+                note: record.note ?? "",
+                chapterFinished: Boolean(record.chapterFinished),
+                part: record.part === "prologue" ? "prologue" : record.part === "epilogue" ? "epilogue" : "chapter",
+              }),
+            ),
           }))
           .filter((book) => !SEED_BOOK_IDS.has(book.id));
         const shelf = (saved.shelf ?? [])
@@ -516,8 +679,10 @@ export const useFolioStore = create<FolioState>()(
             ),
             cafe: hydrateWindow("cafe", saved.windows?.cafe),
             awards: hydrateWindow("awards", saved.windows?.awards),
+            tasks: hydrateWindow("tasks", saved.windows?.tasks),
           },
           themeId: saved.themeId ?? "autumn",
+          colorScheme: saved.colorScheme === "dark" || saved.colorScheme === "system" ? saved.colorScheme : "light",
           wallpaperSrc: (() => {
             const src = saved.wallpaperSrc ?? saved.wallpaperDataUrl ?? null;
             if (src === "/wallpaper.jpg" || src === "/wallpaper-autumn.mp4" || src === "/wallpaper-autumn.gif") {
@@ -562,7 +727,13 @@ export const useFolioStore = create<FolioState>()(
               : DEFAULT_TAGS,
           ),
           notes: Array.isArray(saved.notes) ? saved.notes : [],
+          planner: sanitizePlanner(saved.planner),
+          hourClock: saved.hourClock === "12" ? "12" : "24",
           activeNoteId: saved.activeNoteId ?? null,
+          seenAwards:
+            saved.seenAwards && typeof saved.seenAwards === "object" && !Array.isArray(saved.seenAwards)
+              ? saved.seenAwards
+              : null,
           activeReadingId:
             saved.activeReadingId && shelf.some((book) => book.id === saved.activeReadingId)
               ? saved.activeReadingId
@@ -580,9 +751,12 @@ export function deskSnapshot(state: FolioState): DeskPayload {
     shelf: state.shelf,
     activeReadingId: state.activeReadingId,
     notes: state.notes,
+    planner: state.planner,
+    hourClock: state.hourClock,
     activeNoteId: state.activeNoteId,
     tags: state.tags,
     themeId: state.themeId,
+    colorScheme: state.colorScheme,
     wallpaperSrc: state.wallpaperSrc,
     wallpaperMotion: state.wallpaperMotion,
     customWallpaper: state.customWallpaper,
@@ -592,6 +766,7 @@ export function deskSnapshot(state: FolioState): DeskPayload {
     libraryPane: state.libraryPane,
     countUnit: state.countUnit,
     inbox: state.inbox,
+    seenAwards: state.seenAwards,
   };
 }
 

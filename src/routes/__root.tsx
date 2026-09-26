@@ -43,7 +43,7 @@ export const Route = createRootRoute({
         { name: "theme-color", content: "#3D2A1C" },
         {
           name: "description",
-          content: "Осенний письменный стол. Главы, слова и путь рукописи.",
+          content: "Трекер рукописей и прочитанных книг",
         },
         ...(xBanner ? [{ property: "x:game:image", content: xBanner }] : []),
       ],

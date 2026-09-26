@@ -1,5 +1,5 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Check, Pencil, Plus, Trash2 } from "lucide-react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { Check, ChevronDown, Pencil, Plus, Trash2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ru } from "date-fns/locale";
 import { Button } from "@/components/ui/button";
@@ -7,18 +7,23 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { NumberField } from "@/components/ui/number-field";
 import {
   type Book,
+  type RecordPart,
   type WritingRecord,
   clampChapters,
   finishedChapterSet,
   formatWords,
   getProgress,
   parseNumberInput,
+  recordChapterLabel,
+  recordPart,
   ruPlural,
 } from "@/lib/folio";
 import { useFolioStore } from "@/lib/store";
+import { cn } from "@/lib/utils";
 
 type Draft = {
   date: string;
+  part: RecordPart;
   chapter: string;
   words: string;
   note: string;
@@ -45,7 +50,8 @@ export function RecordList({
   );
 
   const [date, setDate] = useState(today);
-  const [chapter, setChapter] = useState(String(progress.current ?? book.chapterCount));
+  const [part, setPart] = useState<RecordPart>("chapter");
+  const [chapter, setChapter] = useState("");
   const [words, setWords] = useState("");
   const [note, setNote] = useState("");
   const [finished, setFinished] = useState(false);
@@ -54,7 +60,8 @@ export function RecordList({
   const [confirmRemove, setConfirmRemove] = useState(false);
 
   useEffect(() => {
-    setChapter(String(progress.current ?? book.chapterCount));
+    setPart("chapter");
+    setChapter("");
     setFinished(false);
     setWords("");
     setNote("");
@@ -75,28 +82,29 @@ export function RecordList({
   function submit(event: FormEvent) {
     event.preventDefault();
     const wordCount = Math.max(0, Math.round(parseNumberInput(words, 0)));
-    const chapterNum = clampChapters(parseNumberInput(chapter, progress.current ?? 1));
-    const capped = Math.min(book.chapterCount, chapterNum);
+    const chosen = resolveChapter(book, part, chapter, progress.current ?? 1);
     const before = getProgress(book);
     addRecord(book.id, {
       date: date || today,
-      chapter: capped,
+      chapter: chosen.chapter,
+      part: chosen.part,
       words: wordCount,
       note: note.trim(),
       chapterFinished: finished,
     });
-    const after = emitUnlock(before.completedCount);
+    emitUnlock(before.completedCount);
     setWords("");
     setNote("");
     setFinished(false);
-    if (after.current) setChapter(String(after.current));
+    if (part === "chapter") setChapter("");
   }
 
   function startEdit(record: WritingRecord) {
     setEditingId(record.id);
     setEdit({
       date: record.date,
-      chapter: String(record.chapter),
+      part: recordPart(record),
+      chapter: recordPart(record) === "chapter" ? String(record.chapter) : "",
       words: String(record.words),
       note: record.note ?? "",
       finished: record.chapterFinished,
@@ -106,13 +114,11 @@ export function RecordList({
   function saveEdit() {
     if (!editingId || !edit) return;
     const before = getProgress(book);
-    const chapterNum = Math.min(
-      book.chapterCount,
-      clampChapters(parseNumberInput(edit.chapter, 1)),
-    );
+    const chosen = resolveChapter(book, edit.part, edit.chapter, 1);
     updateRecord(book.id, editingId, {
       date: edit.date || today,
-      chapter: chapterNum,
+      chapter: chosen.chapter,
+      part: chosen.part,
       words: Math.max(0, Math.round(parseNumberInput(edit.words, 0))),
       note: edit.note.trim(),
       chapterFinished: edit.finished,
@@ -139,7 +145,7 @@ export function RecordList({
       </div>
 
       <form onSubmit={submit} className={readOnly ? "hidden" : "flex flex-col gap-2 rounded-md bg-paper-deep/50 p-2"}>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.1fr)_5.5rem_5.5rem_auto]">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-[minmax(0,1.1fr)_8.5rem_5.5rem_auto]">
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-muted">День</span>
             <input
@@ -152,11 +158,12 @@ export function RecordList({
           </label>
           <label className="flex flex-col gap-1">
             <span className="text-xs font-medium text-muted">Глава</span>
-            <NumberField
-              value={chapter}
-              onValueChange={setChapter}
-              placeholder="1"
-              aria-label="Глава"
+            <ChapterPicker
+              part={part}
+              chapter={chapter}
+              placeholder={String(progress.current ?? book.chapterCount)}
+              onPart={setPart}
+              onChapter={setChapter}
             />
           </label>
           <label className="flex flex-col gap-1">
@@ -225,11 +232,13 @@ export function RecordList({
                   />
                 </td>
                 <td className="px-1 py-1">
-                  <NumberField
-                    value={edit.chapter}
-                    onValueChange={(value) => setEdit({ ...edit, chapter: value })}
-                    aria-label="Глава"
-                    className="h-8 px-1"
+                  <ChapterPicker
+                    part={edit.part}
+                    chapter={edit.chapter}
+                    placeholder={String(progress.current ?? book.chapterCount)}
+                    onPart={(next) => setEdit({ ...edit, part: next })}
+                    onChapter={(value) => setEdit({ ...edit, chapter: value })}
+                    compact
                   />
                 </td>
                 <td className="px-1 py-1">
@@ -279,12 +288,12 @@ export function RecordList({
             ) : (
               <tr
                 key={record.id}
-                className={finishedChapters.has(record.chapter) ? "bg-moss/18" : "hover:bg-ink/4"}
+                className={rowFinished(record, book, finishedChapters) ? "bg-moss/18" : "hover:bg-ink/4"}
               >
                 <td className="min-w-0 px-2 py-1.5">
                   {formatDay(record.date)}
                   <span className="ml-2 text-muted sm:hidden">
-                    Глава {record.chapter} · {formatWords(record.words)}
+                    {recordChapterLabel(record)} · {formatWords(record.words)}
                   </span>
                   {record.note ? (
                     <span className="mt-0.5 block truncate text-xs text-muted sm:hidden">
@@ -292,7 +301,7 @@ export function RecordList({
                     </span>
                   ) : null}
                 </td>
-                <td className="hidden px-2 py-1.5 sm:table-cell">Глава {record.chapter}</td>
+                <td className="hidden px-2 py-1.5 sm:table-cell">{recordChapterLabel(record)}</td>
                 <td className="hidden px-2 py-1.5 tabular-nums sm:table-cell">
                   {formatWords(record.words)}
                 </td>
@@ -340,6 +349,105 @@ export function RecordList({
         }}
       />
     </section>
+  );
+}
+
+function resolveChapter(book: Book, part: RecordPart, raw: string, fallback: number) {
+  if (part === "prologue") return { part, chapter: 0 };
+  if (part === "epilogue") return { part, chapter: book.chapterCount + 1 };
+  const chapterNum = clampChapters(parseNumberInput(raw.trim() === "" ? String(fallback) : raw, fallback));
+  return { part, chapter: Math.min(book.chapterCount, chapterNum) };
+}
+
+function rowFinished(record: WritingRecord, book: Book, finishedChapters: Set<number>) {
+  const part = recordPart(record);
+  if (part === "chapter") return finishedChapters.has(record.chapter);
+  return book.records.some((item) => recordPart(item) === part && item.chapterFinished);
+}
+
+function ChapterPicker({
+  part,
+  chapter,
+  placeholder,
+  onPart,
+  onChapter,
+  compact = false,
+}: {
+  part: RecordPart;
+  chapter: string;
+  placeholder: string;
+  onPart: (part: RecordPart) => void;
+  onChapter: (value: string) => void;
+  compact?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className={cn("relative flex min-w-0", compact ? "h-8" : "h-10")}>
+      {part === "chapter" ? (
+        <NumberField
+          value={chapter}
+          onValueChange={onChapter}
+          placeholder={placeholder}
+          aria-label="Глава"
+          className={cn("folio-chapter-next min-w-0 flex-1 pr-7", compact && "h-8 px-1")}
+        />
+      ) : (
+        <span
+          className={cn(
+            "folio-control flex min-w-0 flex-1 items-center pr-7 text-sm",
+            compact && "h-8 px-1",
+          )}
+        >
+          {part === "prologue" ? "Пролог" : "Эпилог"}
+        </span>
+      )}
+      <button
+        type="button"
+        aria-label="Выбрать главу, пролог или эпилог"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="absolute inset-y-0 right-0 flex w-7 items-center justify-center text-muted hover:text-ink"
+      >
+        <ChevronDown className="size-3.5" />
+      </button>
+      {open ? (
+        <div className="absolute top-full right-0 z-30 mt-1 min-w-full border border-ink/15 bg-window shadow-[var(--shadow-window)]">
+          {(
+            [
+              ["chapter", "Глава"],
+              ["prologue", "Пролог"],
+              ["epilogue", "Эпилог"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => {
+                onPart(id);
+                setOpen(false);
+              }}
+              className={cn(
+                "block w-full px-2 py-1.5 text-left text-sm hover:bg-ink/6",
+                part === id && "bg-paper-deep/70 text-ink",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

@@ -6,6 +6,8 @@ export type AppUser = {
   displayName: string | null;
   primaryEmail: string | null;
   profileImageUrl: string | null;
+  /** ISO time the account was created, when the session provides it. */
+  createdAt: string | null;
   /** True when this is the sandbox/dev fallback (auth not configured). */
   isDevFallback: boolean;
 };
@@ -22,6 +24,7 @@ export const DEV_USER: AppUser = {
   displayName: "Dev User",
   primaryEmail: "dev@example.com",
   profileImageUrl: null,
+  createdAt: null,
   isDevFallback: true,
 };
 
@@ -66,6 +69,7 @@ export function useCurrentUserState(): CurrentUserState {
           displayName: user.name ?? null,
           primaryEmail: user.email ?? null,
           profileImageUrl: user.image ?? null,
+          createdAt: user.createdAt ? new Date(user.createdAt).toISOString() : null,
           isDevFallback: false,
         }
       : null,

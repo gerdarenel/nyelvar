@@ -1,22 +1,25 @@
 import { useRef, useState } from "react";
 import { fileToWallpaperDataUrl } from "@/lib/folio";
-import { WallpaperMedia } from "@/components/desktop/WallpaperMedia";
-import { THEMES, isAnimatedWallpaper, themeOf, visibleWallpaper } from "@/lib/theme";
+import { WallpaperMedia, useWallpaperMotionAllowed } from "@/components/desktop/WallpaperMedia";
+import { THEMES, isAnimatedWallpaper, themeOf, visibleWallpaper, type ColorScheme } from "@/lib/theme";
 import { useFolioStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 
 export function Personalize() {
   const themeId = useFolioStore((state) => state.themeId);
+  const colorScheme = useFolioStore((state) => state.colorScheme);
   const wallpaperSrc = useFolioStore((state) => state.wallpaperSrc);
   const wallpaperMotion = useFolioStore((state) => state.wallpaperMotion);
   const customWallpaper = useFolioStore((state) => state.customWallpaper);
   const setTheme = useFolioStore((state) => state.setTheme);
+  const setColorScheme = useFolioStore((state) => state.setColorScheme);
   const setWallpaper = useFolioStore((state) => state.setWallpaper);
   const setWallpaperMotion = useFolioStore((state) => state.setWallpaperMotion);
   const setCustomWallpaper = useFolioStore((state) => state.setCustomWallpaper);
   const fileRef = useRef<HTMLInputElement>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const theme = themeOf(themeId);
+  const motionAllowed = useWallpaperMotionAllowed();
   const wallpapers = [
     ...THEMES.map((item) => ({ id: item.id, label: item.label, src: item.wallpaper })),
     ...(customWallpaper ? [{ id: "custom", label: "Своё", src: customWallpaper }] : []),
@@ -43,6 +46,30 @@ export function Personalize() {
       <p className="mt-1 text-sm text-muted">
         Тема меняет цвета и фон. Свой загруженный фон остаётся.
       </p>
+
+      <p className="mt-5 text-xs font-medium tracking-wide text-muted">Режим</p>
+      <ul className="mt-2 grid grid-cols-3 gap-2">
+        {(
+          [
+            { id: "light", label: "Светлая" },
+            { id: "dark", label: "Тёмная" },
+            { id: "system", label: "Система" },
+          ] as { id: ColorScheme; label: string }[]
+        ).map((item) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              onClick={() => setColorScheme(item.id)}
+              className={cn(
+                "h-9 w-full border border-ink/15 text-sm",
+                colorScheme === item.id ? "bg-paper-deep text-ink" : "text-muted hover:bg-ink/5 hover:text-ink",
+              )}
+            >
+              {item.label}
+            </button>
+          </li>
+        ))}
+      </ul>
 
       <p className="mt-5 text-xs font-medium tracking-wide text-muted">Тема</p>
       <ul className="mt-2 grid grid-cols-2 gap-2">
@@ -94,11 +121,11 @@ export function Personalize() {
                 )}
               >
                 <WallpaperMedia
-                  src={motion ? visibleWallpaper(item.src, wallpaperMotion) : item.src}
+                  src={motion ? visibleWallpaper(item.src, wallpaperMotion && motionAllowed) : item.src}
                   className="aspect-[16/10] w-full object-cover"
                 />
               </button>
-              {motion ? (
+              {motion && motionAllowed ? (
                 <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center justify-between gap-2 bg-gradient-to-t from-ink/80 via-ink/45 to-transparent px-1.5 pt-5 pb-1.5">
                   <span className="text-[11px] text-paper">анимация</span>
                   <button
@@ -136,7 +163,9 @@ export function Personalize() {
       >
         Загрузить свой фон
       </button>
-      <p className="mt-1.5 text-xs text-muted">Можно загрузить и GIF-анимацию, до 5 МБ.</p>
+      {motionAllowed ? (
+        <p className="mt-1.5 text-xs text-muted">Можно загрузить и GIF-анимацию, до 5 МБ.</p>
+      ) : null}
       <input
         ref={fileRef}
         type="file"

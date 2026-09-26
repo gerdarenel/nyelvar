@@ -14,6 +14,9 @@
   --color-muted: #8a6f55;
   --color-line: #c4a882;
   --color-window: #f7efe0;
+  --color-chrome: #1c140e;
+  --color-chrome-soft: #3d2a1c;
+  --color-chrome-text: #f4e8d4;
 
   --radius-xs: 0px;
   --radius-sm: 0px;
@@ -61,16 +64,16 @@ html[data-theme="beige"] {
 }
 
 html[data-theme="green"] {
-  --color-ink: #142018;
-  --color-ink-soft: #24352b;
-  --color-paper: #e7f0e4;
-  --color-paper-deep: #d0e0c8;
-  --color-bark: #3d5c45;
-  --color-rust: #3f6b4a;
-  --color-moss: #2f5d3a;
-  --color-muted: #6d8574;
-  --color-line: #b7cbb4;
-  --color-window: #f4faf2;
+  --color-ink: #1a221c;
+  --color-ink-soft: #2a332c;
+  --color-paper: #e5ece3;
+  --color-paper-deep: #d2dccf;
+  --color-bark: #4e5e52;
+  --color-rust: #5c705e;
+  --color-moss: #46624c;
+  --color-muted: #748278;
+  --color-line: #c2cec4;
+  --color-window: #f8f9f7;
 }
 
 html[data-theme="purple"] {
@@ -83,7 +86,59 @@ html[data-theme="purple"] {
   --color-moss: #5b4e7a;
   --color-muted: #8d7596;
   --color-line: #d0bdd6;
-  --color-window: #faf6fb;
+  --color-window: #fcfbfd;
+}
+
+html[data-scheme="dark"] {
+  --color-ink: #f3e6d4;
+  --color-ink-soft: #e4d3bc;
+  --color-paper: #241c16;
+  --color-paper-deep: #31261e;
+  --color-bark: #c4a07a;
+  --color-rust: #e09a72;
+  --color-moss: #9cba86;
+  --color-muted: #b89a80;
+  --color-line: #4a3c30;
+  --color-window: #1a1511;
+}
+
+html[data-theme="beige"][data-scheme="dark"] {
+  --color-ink: #f4efe6;
+  --color-ink-soft: #e4ddd2;
+  --color-paper: #221f1c;
+  --color-paper-deep: #2e2a26;
+  --color-bark: #c2b5a4;
+  --color-rust: #d2b48c;
+  --color-moss: #b3bbaa;
+  --color-muted: #b3a79a;
+  --color-line: #433e38;
+  --color-window: #181614;
+}
+
+html[data-theme="green"][data-scheme="dark"] {
+  --color-ink: #e6eee6;
+  --color-ink-soft: #d3dfd4;
+  --color-paper: #1a211c;
+  --color-paper-deep: #26302a;
+  --color-bark: #9aaf9e;
+  --color-rust: #b3c6b4;
+  --color-moss: #8eaa94;
+  --color-muted: #9aaba0;
+  --color-line: #36423a;
+  --color-window: #131815;
+}
+
+html[data-theme="purple"][data-scheme="dark"] {
+  --color-ink: #f4eaf6;
+  --color-ink-soft: #e4d4ea;
+  --color-paper: #221828;
+  --color-paper-deep: #2e2236;
+  --color-bark: #c4a6d0;
+  --color-rust: #d7b4e2;
+  --color-moss: #b7a8cc;
+  --color-muted: #c2adc4;
+  --color-line: #46364e;
+  --color-window: #160f1c;
 }
 
 @layer base {
@@ -142,6 +197,10 @@ html[data-theme="purple"] {
   input[type="date"] {
     color-scheme: light;
     min-width: 0;
+  }
+
+  html[data-scheme="dark"] input[type="date"] {
+    color-scheme: dark;
   }
 
   input[type="date"]::-webkit-calendar-picker-indicator {
@@ -295,6 +354,10 @@ html[data-theme="purple"] {
     color: var(--color-muted);
   }
 
+  .folio-control.folio-chapter-next::placeholder {
+    color: color-mix(in oklab, var(--color-ink) 35%, transparent);
+  }
+
   .folio-account {
     color: var(--color-paper);
     max-width: min(16rem, 42vw);
@@ -352,7 +415,25 @@ html[data-theme="purple"] {
   .folio-shelf-grid {
     display: grid;
     gap: 0.75rem;
-    grid-template-columns: repeat(auto-fit, minmax(min(50%, max(9.5rem, 16.666%)), 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  @container (min-width: 30rem) {
+    .folio-shelf-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @container (min-width: 42rem) {
+    .folio-shelf-grid {
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+    }
+  }
+
+  @container (min-width: 54rem) {
+    .folio-shelf-grid {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
   }
 
   .folio-cover {

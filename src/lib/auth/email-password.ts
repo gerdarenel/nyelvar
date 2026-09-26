@@ -7,4 +7,14 @@
  *
  * Do NOT edit `server.ts` for this — that file is frozen pre-wired config.
  */
+import { sendPasswordResetEmail } from "./send-reset-email.server";
+
 export const emailAndPasswordEnabled = true;
+
+export const emailAndPasswordOptions = {
+  enabled: true,
+  resetPasswordTokenExpiresIn: 60 * 60,
+  sendResetPassword: async ({ user, url }: { user: { email: string }; url: string }) => {
+    await sendPasswordResetEmail(user.email, url);
+  },
+};
